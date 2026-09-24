@@ -3,3 +3,28 @@
 .change-log .change-entry{padding:5px 8px;border:1px solid #d9e8de;border-radius:5px;background:#f7fbf8;color:#486b5b;font:inherit;font-size:11px;cursor:pointer;text-align:left}
 .change-log .change-entry:hover{background:#eaf5ee;border-color:#9bbdab}
 .issue-mark.number{background:#e7f3ec;border-color:#57a379}
+
+@media(max-width:600px){
+  .change-log{padding:12px 14px;gap:6px}
+  .change-log .change-entry{flex:1 1 100%;min-height:40px}
+  .review-panel{padding:14px}
+  .review-heading{align-items:stretch;flex-direction:column;gap:10px}
+  .review-heading label{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .review-heading select{min-height:44px;min-width:0;flex:1;margin-left:0;font-size:16px}
+  .review-item{padding:14px 12px}
+  .review-excerpt{font-size:14px}
+  .review-actions{align-items:stretch}
+  .review-actions button{flex:1 1 140px;min-height:44px}
+  .personal-dictionary{margin:0 16px 16px}
+  .personal-dictionary textarea{font-size:16px}
+  .personal-dictionary form>.outline{width:100%;min-height:44px}
+  .examples-section{margin-top:26px}
+  .examples-section>h2{font-size:23px;line-height:1.2}
+  .example-grid{gap:12px}
+  .example-grid article{padding:16px 14px}
+  .example-grid h3{font-size:15px}
+  .example-grid p,.example-pair{font-size:13px}
+  .example-pair{align-items:stretch;flex-direction:column;gap:3px}
+  .example-pair s,.example-pair b{width:100%;min-width:0;overflow-wrap:anywhere}
+  .footnote{font-size:11px;overflow-wrap:anywhere}
+}
