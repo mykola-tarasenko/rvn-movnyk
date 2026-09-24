@@ -1,0 +1,5 @@
+.auto-mark{background:#dff1e6;border-bottom:2px solid #5f9b77;border-radius:2px;cursor:pointer}
+.auto-mark:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.change-log .change-entry{padding:5px 8px;border:1px solid #d9e8de;border-radius:5px;background:#f7fbf8;color:#486b5b;font:inherit;font-size:11px;cursor:pointer;text-align:left}
+.change-log .change-entry:hover{background:#eaf5ee;border-color:#9bbdab}
+.issue-mark.number{background:#e7f3ec;border-color:#57a379}

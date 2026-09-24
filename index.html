@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RVN Мовник — Харківський правопис</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="change-highlights.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#"><span class="brand-mark">R</span><span>RVN<span class="brand-muted">.мовник</span></span></a>
+        <div class="sidebar-note"><span>✦</span><p><b>ГО «РВН»</b><small>Мовні інструменти</small></p></div>
+        <nav>
+          <p class="nav-label">ІНСТРУМЕНТИ</p>
+          <a class="nav-item active" href="#editor"><span>✎</span> Редактор</a>
+          <a class="nav-item" href="#rules"><span>⌘</span> Правила <em id="rule-count">9</em></a>
+          <a class="nav-item" href="#examples"><span>↔</span> Приклади</a>
+        </nav>
+        <div class="sidebar-footer"><div class="avatar">РВН</div><span><b>Харківський правопис</b><small>Локальна обробка</small></span></div>
+      </aside>
+      <main>
+        <header class="topbar"><div class="crumb"><span>ГО «РВН»</span><i>/</i><b>Мовник</b></div><div class="top-actions"><span class="privacy">● Текст не залишає браузер</span><a class="help" href="#examples" title="Приклади правил">?</a></div></header>
+        <section class="content" id="editor">
+          <div class="page-heading"><div><p class="eyebrow">МОВНИЙ ІНСТРУМЕНТ</p><h1>Редактор харківського правопису</h1><p class="subtitle">Правила РВН, написання слів, відмінки, пунктуація та милозвучність.</p></div><button class="outline" id="sample-btn">Вставити приклад</button></div>
+          <div class="dictionary-status"><p id="dictionary-status" role="status">Під’єднуємо базу винятків…</p><button id="retry-db" class="outline compact" hidden>Повторити підключення</button><button id="retry-worker" class="outline compact" hidden>Повторити завантаження словника</button></div>
+          <section class="editor-card">
+            <div class="editor-toolbar"><div><label for="source"><b>Ваш текст</b></label><span id="input-count">0 символів</span></div><button class="clear" id="clear-btn">Очистити</button></div>
+            <textarea id="source" spellcheck="false" lang="uk" placeholder="Вставте або напишіть український текст тут…"></textarea>
+            <div class="actions"><div class="switch-row"><label class="switch"><input id="euphony" type="checkbox" checked /><span></span> Милозвучність <small>у/в, і/й, з/із/зі</small></label></div><button class="primary" id="edit-btn" disabled>Завантажуємо словник…</button></div>
+          </section>
+          <section class="result-card" id="result-card" hidden>
+            <div class="result-heading"><div><p class="eyebrow">РЕЗУЛЬТАТ</p><h2>Відредагований текст</h2><span id="summary"></span></div><div class="result-actions"><button class="outline" id="undo-btn" disabled>Скасувати зміну</button><button class="outline" id="copy-btn">Копіювати</button><button class="primary" id="replace-btn">Замінити текст</button></div></div>
+            <p class="result-hint">Підсвічені фрагменти потребують вашого рішення. Натисніть на фрагмент або перегляньте підказки нижче.</p>
+            <div id="result" class="result-text" aria-live="polite"></div>
+            <div id="change-log" class="change-log" aria-label="Список змін"></div>
+            <section class="review-panel" aria-label="Підказки редактора">
+              <div class="review-heading"><div><h3>Перевірте ці місця</h3><span id="review-count"></span></div><label>Показати <select id="issue-filter"><option value="all">Усі підказки</option><option value="spelling">Написання</option><option value="case">Відмінок</option><option value="punctuation">Пунктуація</option><option value="grammar">Граматика</option><option value="number">Числівники</option></select></label></div>
+              <p id="review-empty" class="review-empty" hidden></p><div id="review-list"></div><button id="more-issues" class="outline" hidden>Показати ще</button>
+            </section>
+          </section>
+          <section class="bottom-grid">
+            <article class="panel" id="rules"><div class="section-heading"><div><p class="eyebrow">АКТИВНІ ПРАВИЛА</p><h2>Що перевіряємо</h2></div></div><div class="rules-list">
+              <label><input class="rule-toggle" data-rule="initial" type="checkbox" checked /> <span><b>И на початку слова</b><small>инший, инакше, иноді, инколи, иноземний</small></span></label>
+              <label><input class="rule-toggle" data-rule="loans" type="checkbox" checked /> <span><b>Запозичення</b><small>т, ав, ев, ія/іє/ію, ґ, м’яке л</small></span></label>
+              <label><input class="rule-toggle" data-rule="ending" type="checkbox" checked /> <span><b>Відмінкові форми</b><small>радости, любови, до смерти</small></span></label>
+              <label><input class="rule-toggle" data-rule="euphony" type="checkbox" checked /> <span><b>Милозвучність</b><small>у/в, і/й, сполуки зі збігом приголосних</small></span></label>
+              <label><input class="rule-toggle" data-rule="spelling" type="checkbox" checked /> <span><b>Написання слів</b><small>український словник, винятки РВН, змішані абетки</small></span></label>
+              <label><input class="rule-toggle" data-rule="typography" type="checkbox" checked /> <span><b>Оформлення</b><small>пробіли, смайлики, апострофи, лапки, тире</small></span></label>
+              <label><input class="rule-toggle" data-rule="punctuation" type="checkbox" checked /> <span><b>Пунктуація</b><small>підказки щодо ком, великих літер і парних знаків</small></span></label>
+              <label><input class="rule-toggle" data-rule="grammar" type="checkbox" checked /> <span><b>Граматика</b><small>поширені випадки керування, узгодження й повторів</small></span></label>
+              <label><input class="rule-toggle" data-rule="numerals" type="checkbox" checked /> <span><b>Числівники</b><small>цифри й слова: 1, 2–4, 5+, складені числа та дроби</small></span></label>
+            </div></article>
+            <article class="panel activity" id="about"><div class="section-heading"><div><p class="eyebrow">ЯК ЦЕ ПРАЦЮЄ</p><h2>Ви керуєте виправленнями</h2></div></div><ol class="how-list"><li><b>Автоматичні зміни</b><span>Написання за словником РВН, розпізнані родові форми, оформлення та милозвучність.</span></li><li><b>Підказки в контексті</b><span>Невідомі слова, неоднозначні відмінки, коми й граматика: прийміть запропоновану зміну або залиште текст.</span></li><li><b>Перевірка після зміни</b><span>Кожна прийнята підказка запускає повторну перевірку. Останню зміну можна скасувати.</span></li></ol>
+              <details class="personal-dictionary"><summary><span id="exceptions-title">Особистий словник</span> (<span id="personal-count">0</span>)</summary><p id="exceptions-description">Винятки зберігаються лише у сховищі цього браузера.</p><form id="personal-form"><label class="sr-only" for="personal-word">Слова або назви</label><textarea id="personal-word" placeholder="Слово або список слів" maxlength="32000" rows="3" required></textarea><button class="outline compact">Додати</button></form><div id="personal-list"></div></details>
+            </article>
+          </section>
+          <section class="examples-section" id="examples">
+            <p class="eyebrow">ПРАВИЛА Й ПРИКЛАДИ</p><h2>Як саме змінюється текст</h2>
+            <p class="examples-intro">Написання за нормою РВН спирається на ваш путівник. Загальний український словник допомагає знаходити друкарські помилки, а правила контексту — підказувати відмінки, коми й узгодження. Невідоме словникові слово може бути правильною власною назвою.</p>
+            <div class="example-grid">
+              <article><h3>Початкове и</h3><p>У визначених РВН словах і похідних прикметникових формах початкове <b>і</b> переходить в <b>и</b>.</p><div class="example-pair"><s>інакше, іноді, інколи</s><b>инакше, иноді, инколи</b></div><div class="example-pair"><s>інший, іноземною</s><b>инший, иноземною</b></div><small>Путівник, с. 4. Заміна діє для перелічених основ, а не для кожного початкового «і».</small></article>
+              <article><h3>Звук θ і дифтонги</h3><p>У внесених словах застосовуємо написання з <b>т</b>, <b>ав</b> або <b>ев</b>; закінчення відмінка зберігаємо.</p><div class="example-pair"><s>марафону</s><b>маратону</b></div><div class="example-pair"><s>аудиторії</s><b>авдиторії</b></div><small>Путівник, с. 5–6.</small></article>
+              <article><h3>Ія, ію та ґ</h3><p>Написання змінюється в основі слова, тому діє й у відмінюваних формах.</p><div class="example-pair"><s>спеціального агента</s><b>спеціяльного аґента</b></div><div class="example-pair"><s>тріумфом</s><b>тріюмфом</b></div><small>Путівник, с. 7–8.</small></article>
+              <article><h3>Похідні та спільнокореневі</h3><p>Пишемо «ія» й у відмінках та похідних від визначених основ. Родовий на -и застосовуємо за контекстом.</p><div class="example-pair"><s>меморіалу, меморіальний</s><b>меморіялу, меморіяльний</b></div><div class="example-pair"><s>ініціативою, медіапростору</s><b>ініціятивою, медіяпростору</b></div><div class="example-pair"><s>без багатоголосності й одеськості</s><b>без багатоголосности й одеськости</b></div><small>Форми «багатоголосності» й «одеськості» в давальному та місцевому залишаються на -і.</small></article>
+              <article><h3>Соцмережі та запозичення</h3><p>У назвах новіших запозичень передаємо g через ґ. «Телеґрам» змінюємо автоматично за контексту соцмережі, щоб не зачепити звичайну «телеграму».</p><div class="example-pair"><s>інстаграм, Телеграм-канал</s><b>інстаґрам, Телеґрам-канал</b></div><div class="example-pair"><s>тг-канал</s><b>тґ-канал</b></div><p>«Директ», «сториз», «давним-давно» та «Коцюбіїв» приймаємо як правильні слова.</p><small>Путівник, с. 8: g → ґ у новіших запозиченнях. Перелік назв — редакційне доповнення РВН.</small></article>
+              <article><h3>Узгодження числівників</h3><p>Перевіряємо цифри й числівники словами. Числа із кінцевою 1, крім 11, вимагають однини; із кінцевими 2–4, крім 12–14, — лічильної форми множини; решта цілих кількостей — родового множини.</p><div class="example-pair"><s>1 документи; 2 документа; 5 документи</s><b>1 документ; 2 документи; 5 документів</b></div><div class="example-pair"><s>21 документів; двадцять дві документи</s><b>21 документ; двадцять два документи</b></div><div class="example-pair"><s>півтора години; 1,5 років</s><b>півтори години; 1,5 року</b></div><p>Дати на кшталт «19 вересня» не змінюємо. Неоднозначні відмінки лишаємо на перегляд редакторові.</p><small>Підказки діють для поширених іменників у словнику редактора; для всіх можливих відмінюваних слів повного морфологічного аналізу ще немає.</small></article>
+              <article><h3>М’яке л та початкове е</h3><p>Підставляємо відповідні основи лише в словах зі словника редактора.</p><div class="example-pair"><s>плану</s><b>пляну</b></div><div class="example-pair"><s>в Європі</s><b>в Европі</b></div><small>Путівник, с. 10–11, 13.</small></article>
+              <article><h3>Родовий відмінок на -и</h3><p>Враховуємо прийменники, дієслова, заперечення, залежні іменники, означення та однорідні переліки.</p><div class="example-pair"><s>почуття власної гідності</s><b>почуття власної гідности</b></div><div class="example-pair"><s>без любові й радості</s><b>без любови й радости</b></div><div class="example-pair"><s>не було можливості</s><b>не було можливости</b></div><p>«Завдяки можливості», «у власній гідності» зберігаємо. Для окремого «любові» показуємо вибір: якщо це родовий — «любови».</p><small>Путівник, с. 12. Це розпізнавання за правилами контексту; складний синтаксис може вимагати ручного рішення.</small></article>
+              <article><h3>Милозвучність</h3><p>Враховуємо обидва сусідні слова, паузи, початкові в/ф та збіги приголосних. Повторювані «і… і…» зберігаємо.</p><div class="example-pair"><s>була в Львові</s><b>була у Львові</b></div><div class="example-pair"><s>з школи</s><b>зі школи</b></div><div class="example-pair"><s>мама і Олена</s><b>мама й Олена</b></div><small>Правило можна вимкнути для цитат, віршів або сталих висловів.</small></article>
+              <article><h3>Написання слів</h3><p>Перевіряємо слово за українським словником і додатковими формами РВН. Варіянти виправлення з’являються на запит.</p><div class="example-pair"><s>помилкка</s><b>помилка — пропозиція</b></div><div class="example-pair"><s>текcт (латинське c)</s><b>текст — пропозиція</b></div><small>Невідомі власні назви й терміни можна додати до бази винятків.</small></article>
+              <article><h3>Спільні винятки РВН</h3><p>Ці форми доступні всім у редакторі: «донат», відмінювані форми «приурочений», скорочення «ім.». У родовому відмінку «пам’ять» має форму «пам’яти».</p><div class="example-pair"><s>без пам’яті</s><b>без пам’яти</b></div><div class="example-pair"><s>завдяки пам’яті</s><b>завдяки пам’яті — без зміни</b></div><small>Збережені додаткові слова діють для всіх, хто відкриває цей сервер редактора.</small></article>
+              <article><h3>Оформлення</h3><p>Виправляємо зайві пробіли, пробіл перед відкривною дужкою та пробіли після неї, повторені коми, апострофи, парні прямі лапки й дефіс замість тире між словами. Між словом і смайликом потрібен пробіл з обох боків.</p><div class="example-pair"><s>слово( пояснення)</s><b>слово (пояснення)</b></div><div class="example-pair"><s>Привіт🙂друже</s><b>Привіт 🙂 друже</b></div><div class="example-pair"><s>"пам'ять"</s><b>«пам’ять»</b></div><small>Посилання, електронні адреси й Markdown-код захищені від автоматичних змін.</small></article>
+              <article><h3>Коми та парні знаки</h3><p>Пропонуємо коми при звертаннях, вставних висловах і ймовірних межах речення. Позначаємо непарні дужки й лапки.</p><div class="example-pair"><s>Маріє перевір текст.</s><b>Маріє, перевір текст.</b></div><div class="example-pair"><s>Знаємо що текст готовий.</s><b>Знаємо, що текст готовий.</b></div><small>Пунктуаційні підказки застосовуються тільки після вашого рішення.</small></article>
+              <article><h3>Керування та узгодження</h3><p>Перевіряємо поширені сполуки, узгодження відомих редактору прикметників та іменників, особові форми дієслів і повтори.</p><div class="example-pair"><s>згідно наказу</s><b>згідно з наказом</b></div><div class="example-pair"><s>Новий книга. Ми працює.</s><b>Нова книга. Ми працюємо.</b></div><small>Це набір конкретних перевірок, а не повне охоплення всіх граматичних конструкцій.</small></article>
+            </div>
+          </section>
+          <p class="footnote">Написання РВН — за наданим путівником. Український словник: <a href="https://github.com/wooorm/dictionaries/tree/main/dictionaries/uk" target="_blank" rel="noreferrer">dictionary-uk / VESUM</a>; <a href="vendor/dictionary-uk-GPL-3.0.txt">ліцензія GPL-3.0</a>. Пунктуація й граматика перевіряються за описаними правилами. Відсутність підказок не гарантує відсутности всіх помилок.</p>
+        </section>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <script src="proofreading-worker.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
