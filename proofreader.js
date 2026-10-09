@@ -10,13 +10,16 @@
 
   function create(spell) {
     const suggestionCache = new Map();
+    // Похідне слово РВН (плянування, матеріялізм) приймаємо, якщо словник знає його стандартне написання.
+    const correct = word => spell.correct(word)
+      || engine.standardForms(word.toLocaleLowerCase('uk')).some(form => spell.correct(form) || spell.correct(engine.caseLike(word, form)));
     function accepted(word, personal, sharedGenitive = []) {
       const w = norm(word), lower = w.toLocaleLowerCase('uk');
       if (personal.has(lower) || engine.accepted(lower) || ['РВН', 'ГО'].includes(word)) return true;
-      if (spell.correct(w)) return true;
+      if (correct(w)) return true;
       if (engine.isRvnGenitive(lower, sharedGenitive)) {
         const modern = lower.slice(0, -1) + 'і';
-        if (spell.correct(modern)) return true;
+        if (correct(modern)) return true;
       }
       return false;
     }
@@ -77,7 +80,7 @@
       const formatted = settings.typography ? typography(input) : { text: input, changes: [] };
       const sharedGenitive = Array.isArray(sharedData.genitive) ? sharedData.genitive : [];
       const sharedAbbreviations = new Set((Array.isArray(sharedData.abbreviations) ? sharedData.abbreviations : []).map(value => norm(value).toLocaleLowerCase('uk')));
-      const edited = engine.edit(formatted.text, { ...settings, genitiveOverrides: sharedGenitive });
+      const edited = engine.edit(formatted.text, { ...settings, genitiveOverrides: sharedGenitive, known: word => spell.correct(word) });
       // Map earlier typography edits through later word-level replacements so their
       // coordinates refer to the final text shown in the result pane.
       let precedingDelta = 0;
@@ -117,6 +120,7 @@
       function matches(pattern, handle) { for (const match of text.matchAll(pattern)) handle(match); }
       const contiguous = (left, right) => /^[ \t]+$/u.test(text.slice(left.end, right.start));
 
+      for (const item of edited.reviews) issue(item.start, item.end, 'rvn', item.message, item.replacements);
       words.forEach((word, index) => {
         if (word.protected || !UK.test(word.value)) return;
         if (settings.ending && engine.genitiveForm(word.lower, sharedGenitive)) {

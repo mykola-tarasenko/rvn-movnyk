@@ -53,7 +53,7 @@ function startWorker() {
 }
 function issueKey(item) { return [item.type, item.from, item.message, current.text.slice(Math.max(0, item.start - 20), item.start), current.text.slice(item.end, item.end + 20)].join('|'); }
 function activeIssues() { return current ? current.issues.filter(item => !ignored.has(issueKey(item))) : []; }
-const names = { spelling: 'Написання', punctuation: 'Пунктуація', grammar: 'Граматика', case: 'Відмінок', number: 'Числівники' };
+const names = { rvn: 'Правопис РВН', spelling: 'Написання', punctuation: 'Пунктуація', grammar: 'Граматика', case: 'Відмінок', number: 'Числівники' };
 function element(tag, className, text) { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; }
 function action(label, callback, className = 'outline compact') { const button = element('button', className, label); button.type = 'button'; button.addEventListener('click', callback); return button; }
 
