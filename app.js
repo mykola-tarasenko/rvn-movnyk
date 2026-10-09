@@ -28,7 +28,7 @@ function workerFailure(message) {
 }
 function startWorker() {
   worker?.terminate(); ready = false; setBusy(false); $('#retry-worker').hidden = true;
-  status.classList.remove('error'); status.textContent = 'Завантажуємо український словник… Перше відкриття може тривати 10–20 секунд.';
+  status.classList.remove('error'); status.textContent = 'Завантажуємо український словник…';
   try {
     if (!window.RVN_WORKER_SOURCE) throw new Error('Не знайдено proofreading-worker.js. Перевірте файли проєкту.');
     const url = URL.createObjectURL(new Blob([window.RVN_WORKER_SOURCE], { type: 'text/javascript' }));
@@ -210,21 +210,26 @@ function renderPersonal() {
     if (current) await analyzeText(current.text);
   }, 'word-chip'));
 }
+// Необов’язковий SQLite-сервер (server.js) працює лише на цьому комп’ютері. Опублікований сайт і файл
+// index.html працюють без сервера: словник у файлах сайту, особисті винятки — у сховищі браузера.
+const localServer = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+function useBrowserDictionary(description, message) {
+  databaseMode = false; shared = { genitive: [], abbreviations: [] };
+  try {
+    const saved = JSON.parse(localStorage.getItem('rvn-personal-words-v1') || '[]');
+    personal = Array.isArray(saved) ? saved.filter(word => typeof word === 'string' && word.length < 100) : [];
+  } catch { personal = []; }
+  $('#exceptions-title').textContent = 'Особистий словник';
+  $('#exceptions-description').textContent = description;
+  status.textContent = message;
+  renderPersonal(); databaseReady = true; startWorker();
+}
 async function connectDatabase() {
   databaseReady = false; ready = false; setBusy(false);
   $('#retry-db').hidden = true;
   status.classList.remove('error');
-  if (location.protocol === 'file:') {
-    databaseMode = false; shared = { genitive: [], abbreviations: [] };
-    try {
-      const saved = JSON.parse(localStorage.getItem('rvn-personal-words-v1') || '[]');
-      personal = Array.isArray(saved) ? saved.filter(word => typeof word === 'string' && word.length < 100) : [];
-    } catch { personal = []; }
-    $('#exceptions-title').textContent = 'Особистий словник';
-    $('#exceptions-description').textContent = 'Винятки зберігаються лише у сховищі цього браузера. Щоб ділитися ними між браузерами, запустіть необов’язкову SQLite-версію сервера.';
-    status.textContent = 'Працюємо локально: з’єднання із сервером не потрібне.';
-    renderPersonal(); databaseReady = true; startWorker(); return;
-  }
+  if (location.protocol === 'file:') return useBrowserDictionary('Винятки зберігаються лише у сховищі цього браузера. Щоб ділитися ними між браузерами, запустіть необов’язкову SQLite-версію сервера.', 'Працюємо локально: з’єднання із сервером не потрібне.');
+  if (!localServer) return useBrowserDictionary('Винятки зберігаються лише у сховищі цього браузера.', 'Працюємо онлайн без сервера: текст перевіряється у вашому браузері.');
   status.textContent = 'Під’єднуємо базу винятків…';
   try {
     const data = await databaseRequest('/api/exceptions');
@@ -233,17 +238,7 @@ async function connectDatabase() {
     $('#exceptions-description').textContent = 'Додані тут слова зберігаються у файлі SQLite на сервері редактора, тож доступні кожному, хто ним користується. Можна додати одне слово або вставити список, розділений комами чи новими рядками.';
     renderPersonal(); databaseReady = true; startWorker();
   } catch {
-    databaseMode = false;
-    try {
-      const saved = JSON.parse(localStorage.getItem('rvn-personal-words-v1') || '[]');
-      personal = Array.isArray(saved) ? saved.filter(word => typeof word === 'string' && word.length < 100) : [];
-    } catch { personal = []; }
-    $('#exceptions-title').textContent = 'Особистий словник';
-    $('#exceptions-description').textContent = 'Винятки зберігаються лише у сховищі цього браузера.';
-    renderPersonal(); databaseReady = true;
-    status.textContent = 'SQLite не під’єднано; користуємося особистим словником у браузері.';
-    status.classList.remove('error'); $('#retry-db').hidden = true;
-    startWorker();
+    useBrowserDictionary('Винятки зберігаються лише у сховищі цього браузера.', 'SQLite не під’єднано; користуємося особистим словником у браузері.');
   }
 }
 function invalidate() {
@@ -257,8 +252,31 @@ document.querySelectorAll('[data-rule]').forEach(input => input.addEventListener
 $('#euphony').addEventListener('change', event => { $('[data-rule="euphony"]').checked = event.target.checked; invalidate(); });
 editButton.addEventListener('click', async () => { if (await analyzeText(source.value, true)) resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 $('#clear-btn').addEventListener('click', () => { source.value = ''; updateCount(); invalidate(); source.focus(); });
+// Приклад для кнопки «Вставити приклад»: кожен абзац показує окрему групу правил.
+const SAMPLE = [
+  // Початкове и, запозичення (т, ав, ев, ія, ґ, м’яке л) і похідні слова.
+  'Іншого спеціального агента запросили до аудиторії на марафон. Інколи міфологія та ефірний час важать більше, ніж плани, тож європейські партнери підтримали ініціативу й планування нової платформи.',
+  // Родовий на -и, спільний виняток «пам’яти»; давальний не змінюємо; неоднозначний відмінок — підказка.
+  'Рівень відповідальності й почуття власної гідності зростають. Без щирої любові й радості не було можливості працювати, а без пам\'яті немає майбутнього. Завдяки можливості навчатися ми впоралися. Її любові вистачить на всіх.',
+  // Милозвучність: у/в, з/зі, і/й.
+  'Вона була в Львові, а з школи повернулася пізно. Він пішов в школу і в кімнату. Мама і Олена чекали вдома.',
+  // «Клас» і «зал» жіночого роду; сполуки з узгодженими словами та сумнівне похідне — підказки.
+  'Учні 9 класу прийшли до залу. Відбувся цікавий майстер-клас, тож зал був повний. Ми зайшли у великий зал, а в спортзалі провели ще два нові класи. Нова планка для команди.',
+  // Назви соцмереж; посилання й пошта захищені від змін.
+  'Підписуйтеся на наш Telegram-канал та Instagram: https://instagram.com/rvn_example або пишіть на info@example.com.',
+  // Оформлення: тире, дужки, лапки, апостроф, пробіли, смайлик, три крапки.
+  'Програма заходу - лекція й обговорення( деталі нижче). Назва: "Мова  та пам\'ять" ,початок о 18:00🙂Чекаємо всіх...',
+  // Написання: друкарська помилка й латинська «c» у кириличному слові.
+  'У тексті є помилкка, а в слові текcт змішано латиницю.',
+  // Пунктуація: звертання, вставне слово, кома перед «що», велика літера, непарна дужка.
+  'Маріє перевір текст. На жаль команда знає що часу мало. наступний захід буде (після свят.',
+  // Граматика: узгодження, особа дієслова, керування, повтор, усталена сполука.
+  'Новий книга лежить поруч. Ми працює згідно наказу. Цей цей план готовий, і ми будемо приймати участь.',
+  // Числівники.
+  'Зареєструвалися 21 учасників і 2 волонтера, а лекція триватиме півтора години.'
+].join('\n\n');
 $('#sample-btn').addEventListener('click', () => {
-  source.value = 'Іншого спеціального агента запросили до аудиторії. Рівень відповідальності й почуття власної гідності зростають. Без щирої любові й радості не було можливості працювати. На жаль команда знає що в текcті є помилкка. Новий книга лежить поруч. Ми працює згідно наказу. Вона була у Львові ,а з школи повернулася пізно.';
+  source.value = SAMPLE;
   updateCount(); invalidate(); source.focus();
 });
 $('#undo-btn').addEventListener('click', () => { const old = history.pop(); if (!old) return; revision++; current = old.current; journal = old.journal; ignored = old.ignored; setBusy(false); renderResult(); });

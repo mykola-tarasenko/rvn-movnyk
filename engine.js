@@ -96,6 +96,18 @@
   const NOT_MODIFIERS = new Set('тому чому кому ньому ним нім їм всім усім якому якім'.split(' '));
   const TRANSPARENT = new Set(['його', 'її', 'їх']);
   const COUNTED = new Map([['два', 'дві'], ['обидва', 'обидві'], ['півтора', 'півтори']]);
+  // Злиті складні слова: «спортзал», «майстерклас». Перелік перших частин закритий, бо закінчення
+  // -зала/-зали мають і дієслова (сказала, сказали), а -зал — «вокзал», «футзал».
+  // Присудок до підмета «зал/клас» у називному: «Зал був повний» → «Заля була повна».
+  const COPULAS = new Set('був став виявився здавався залишався залишився лишався лишився'.split(' '));
+  function feminineVerb(lower) {
+    if (/(?:ав|яв|ив|ув|ів|їв)ся$/u.test(lower)) return lower.slice(0, -3) + 'лася';
+    if (/шов$/u.test(lower)) return lower.slice(0, -2) + 'ла';
+    // -ів/-їв без -ся пропускаємо: так закінчуються й іменники (учнів, Київ).
+    if (/(?:ав|яв|ив|ув)$/u.test(lower) && lower.length > 2) return lower.slice(0, -1) + 'ла';
+    return null;
+  }
+  const SHIFTED_COMPOUND = /^(аван|авдієнц|аудієнц|бізнес|відео|віп|кіно|стереокіно|конференц|кур|маш|прес|род|спорт|танц|економ|екстра|еліт|євро|майстер|мета|над|під|преміум|псевдо|спец|супер|пів)((?:клас|зал)\p{L}*)$/u;
 
   const GENITIVE = new Map([
     ['радості', 'радости'], ['вісті', 'вісти'], ['смерті', 'смерти'], ['чверті', 'чверти'],
@@ -194,8 +206,9 @@
       if (FIRST_VOWEL.test(next.lower)) return 'в';
       return before && VOWEL.test(before) ? 'в' : 'у';
     }
-    // Повторювані сполучники та частки зберігаємо.
-    if (words.slice(Math.max(0, index - 5), index).some(w => ['і', 'й'].includes(w.lower)) || words.slice(index + 1, index + 5).some(w => ['і', 'й'].includes(w.lower))) return null;
+    // Повторювані сполучники та частки («і мама, і тато») зберігаємо, але лише в межах речення.
+    const sameSentence = other => !/[.!?…\n]/u.test(text.slice(Math.min(other.end, word.end), Math.max(other.start, word.start)));
+    if ([...words.slice(Math.max(0, index - 5), index), ...words.slice(index + 1, index + 5)].some(w => ['і', 'й'].includes(w.lower) && sameSentence(w))) return null;
     if (/^[йяюєї]/u.test(next.lower)) return 'і';
     // Перед «в» + голосний прийменник лишається «в», тож сполучник — «і»: «мама і в Одесі».
     const after = words[index + 2];
@@ -246,53 +259,99 @@
   }
   const masculineModifier = lower => PRONOUNS.has(lower) || OBLIQUE_PRONOUNS.has(lower)
     || (lower.length > 3 && !NOT_MODIFIERS.has(lower) && /(?:ий|ій|ого|ього|ому|ьому|им|ім)$/u.test(lower));
-  function shiftedNoun(words, index, text, out) {
+  function shiftedParts(lower) {
+    if (SHIFTED.has(lower)) return { prefix: '', key: lower };
+    const match = lower.match(SHIFTED_COMPOUND);
+    return match && SHIFTED.has(match[2]) ? { prefix: match[1], key: match[2] } : null;
+  }
+  // Дієслово перед іменником у множині, інфінітиві чи 1–2 особі вимагає додатка (знахідний): «провели майстер-клас».
+  // Після іменника — множина чи безособова форма: «Зал прикрасили», «Зал прикрашено».
+  const OBJECT_VERB = /\p{L}{2,}(?:ли|ти|мо|те|ють|ять)$/u, OBJECT_VERB_AFTER = /\p{L}{2,}(?:ли|но|то|ють|ять)$/u;
+  function shiftedNoun(words, index, text, out, { prefix, key }) {
     const word = words[index];
+    const gapAfter = k => text.slice(words[k].end, words[k + 1].start);
+    const spaced = k => words[k + 1] && !words[k + 1].protected && /^[ \t]+$/u.test(gapAfter(k));
+    // «майстер-клас»: перша частина через дефіс не є означенням, шукаємо далі ліворуч.
+    const head = index > 0 && gapAfter(index - 1) === '-' ? index - 1 : index;
     const modifiers = [];
-    let governor = null, j = index - 1;
-    for (; j >= 0 && index - j <= 5; j--) {
-      if (words[j].protected || !/^[\s\d]*$/u.test(text.slice(words[j].end, words[j + 1].start))) break;
+    let governor = null, governorIndex = -1, sentenceStart = false, j = head - 1;
+    for (; j >= 0 && head - j <= 5; j--) {
+      const gap = gapAfter(j);
+      if (words[j].protected || !/^[\s\d]*$/u.test(gap)) { sentenceStart = /[.!?…\n]/u.test(gap); break; }
       const lower = words[j].lower;
       if (TRANSPARENT.has(lower)) continue;
-      if (!masculineModifier(lower)) { governor = lower; break; }
+      if (!masculineModifier(lower)) { governor = lower; governorIndex = j; break; }
       modifiers.unshift(j);
     }
-    let readings = SHIFTED.get(word.lower);
+    if (j < 0) sentenceStart = true;
+    let readings = SHIFTED.get(key).map(([grammaticalCase, form, gender]) => [grammaticalCase, prefix + form, gender]);
     if (modifiers.length) readings = readings.filter(([, , gender = 'm']) => gender === 'm');
-    const governed = ACCUSATIVE_GOVERNORS.has(governor) ? 'acc' : DATIVE_GOVERNORS.has(governor) ? 'dat'
-      : GENITIVE_GOVERNORS.has(governor) || genitiveContext(words, index, text).kind === 'genitive' ? 'gen' : null;
-    if (governed && readings.some(([grammaticalCase]) => grammaticalCase === governed)) readings = readings.filter(([grammaticalCase]) => grammaticalCase === governed);
-    const counted = readings.every(([, , gender]) => gender === 'p') && words[index - 1] && COUNTED.has(words[index - 1].lower)
-      && /^\s+$/u.test(text.slice(words[index - 1].end, word.start)) ? index - 1 : null;
-    const agree = counted !== null ? [counted] : readings.some(([, , gender = 'm']) => gender === 'm') ? modifiers : [];
-    if (new Set(readings.map(([, form]) => form)).size === 1 && !agree.length) return { to: readings[0][1] };
-    const base = word.lower.startsWith('клас') ? ['клас', 'кляса'] : ['зал', 'заля'];
-    const phrase = ([grammaticalCase, form]) => {
-      if (!agree.length) return caseLike(word.value, form);
-      let result = '';
-      for (let k = agree[0]; k < index; k++) {
-        const value = out[k], lower = value.toLocaleLowerCase('uk');
-        const changed = !agree.includes(k) ? value : COUNTED.get(lower) || feminine(lower, grammaticalCase);
-        if (!changed) return null;
-        result += caseLike(value, changed) + text.slice(words[k].end, words[k + 1].start);
+    // Числівник може стояти перед прикметниками множини: «два нові класи», «півтора залу».
+    let counted = head - 1;
+    while (counted >= 0 && spaced(counted) && /\p{L}{2,}(?:і|ї|их|іх)$/u.test(words[counted].lower) && !COUNTED.has(words[counted].lower)) counted--;
+    counted = counted >= 0 && counted < head && COUNTED.has(words[counted].lower) && spaced(counted) ? counted : null;
+    // Присудок після іменника: дієслово минулого часу (можна з «не» та прислівником на -о) і прикметники після зв'язки.
+    const predicate = [];
+    let k = index;
+    if (spaced(k) && words[k + 1].lower === 'не' && spaced(k + 1)) k++;
+    if (spaced(k) && /^\p{L}{3,}о$/u.test(words[k + 1].lower) && spaced(k + 1) && feminineVerb(words[k + 2].lower)) k++;
+    const verb = spaced(k) && feminineVerb(words[k + 1].lower);
+    const objectAfter = !verb && spaced(k) && OBJECT_VERB_AFTER.test(words[k + 1].lower);
+    if (verb) predicate.push(++k);
+    if (!verb || COPULAS.has(words[k].lower)) {
+      while (spaced(k) && /\p{L}{2,}(?:ий|ій)$/u.test(words[k + 1].lower) && !PRONOUNS.has(words[k + 1].lower)) {
+        predicate.push(++k);
+        if (spaced(k) && ['і', 'й', 'та'].includes(words[k + 1].lower) && spaced(k + 1) && /\p{L}{2,}(?:ий|ій)$/u.test(words[k + 2]?.lower || '')) k++;
       }
-      return result + caseLike(word.value, form);
+    }
+    // Присудок перед підметом: «Відбувся майстер-клас» → «Відбулася майстер-кляса».
+    const verbBefore = counted === null && governorIndex > -1 && feminineVerb(governor) ? governorIndex : null;
+    const governed = counted !== null ? (words[counted].lower === 'півтора' ? 'gen' : 'pl')
+      : ACCUSATIVE_GOVERNORS.has(governor) ? 'acc' : DATIVE_GOVERNORS.has(governor) ? 'dat'
+        : GENITIVE_GOVERNORS.has(governor) || genitiveContext(words, index, text).kind === 'genitive' ? 'gen'
+          : verbBefore !== null || verb ? 'nom' : (governor && OBJECT_VERB.test(governor)) || objectAfter ? 'acc'
+            // На початку речення без дієслова на -ли/-но/-то («Зал прикрасили») іменник — підмет.
+            : sentenceStart && !modifiers.length && !/\p{L}(?:ли|но|то)(?!\p{L})/u.test(text.slice(word.end).split(/[.!?…\n]/u)[0]) ? 'nom' : null;
+    if (governed && readings.some(([grammaticalCase]) => grammaticalCase === governed)) readings = readings.filter(([grammaticalCase]) => grammaticalCase === governed);
+    const masculine = readings.some(([, , gender = 'm']) => gender === 'm');
+    const nominative = masculine && readings.length === 1 && readings[0][0] === 'nom';
+    const agree = counted !== null ? [counted] : masculine ? modifiers : [];
+    if (nominative && verbBefore !== null) agree.unshift(verbBefore);
+    const agreeAfter = nominative ? predicate : [];
+    // Чоловічий рід у називному змінює й присудок, тож автоматично не замінюємо навіть однозначну форму.
+    if (new Set(readings.map(([, form]) => form)).size === 1 && !agree.length && !nominative) return { to: readings[0][1] };
+    const base = key.startsWith('клас') ? ['клас', 'кляса'] : ['зал', 'заля'];
+    const first = agree.length ? agree[0] : index, last = agreeAfter.length ? agreeAfter.at(-1) : index;
+    const phrase = ([grammaticalCase, form]) => {
+      let result = '';
+      for (let k = first; k <= last; k++) {
+        const value = out[k], lower = value.toLocaleLowerCase('uk');
+        const changed = k === index ? form : k === verbBefore ? feminineVerb(lower)
+          : agree.includes(k) ? COUNTED.get(lower) || feminine(lower, grammaticalCase)
+            : agreeAfter.includes(k) ? feminineVerb(lower) || feminine(lower, 'nom') : lower;
+        if (!changed) return null;
+        result += caseLike(k === index ? word.value : value, changed) + (k < last ? gapAfter(k) : '');
+      }
+      return result;
     };
-    let replacements = readings.map(phrase);
-    const whole = agree.length > 0 && replacements.every(Boolean);
-    if (!whole) replacements = readings.map(([, form]) => caseLike(word.value, form));
     const message = `За РВН «${base[0]}» — жіночого роду («${base[1]}»). `
-      + (agree.length ? (whole ? 'Разом з іменником змінюємо й узгоджене слово.' : 'Після заміни узгодьте означення вручну.') + ' '
-        : '')
+      + (agree.length || agreeAfter.length ? 'Разом з іменником змінюємо й узгоджені слова. '
+        : nominative ? 'Якщо в реченні є присудок чоловічого роду («був», «готовий»), узгодьте й його. ' : '')
       + (readings.length > 1 ? 'Оберіть форму за відмінком: ' + readings.map(([grammaticalCase, form]) => `«${form}» — ${CASE_NAMES[grammaticalCase]}`).join(', ') + '.' : '');
-    return { review: { first: whole ? agree[0] : index, replacements: [...new Set(replacements)], message: message.trim() } };
+    return { review: { message: message.trim(),
+      // Варіянти будуємо після проходу тексту: слова праворуч ще можуть змінитися (милозвучність).
+      build: () => {
+        const whole = readings.map(phrase);
+        if (whole.every(Boolean)) return { first, last, replacements: [...new Set(whole)] };
+        return { first: index, last: index, replacements: [...new Set(readings.map(([, form]) => caseLike(word.value, form)))] };
+      } } };
   }
   function edit(text, options = {}) {
     const enabled = { initial: true, loans: true, ending: true, euphony: true, ...options };
     // known перевіряє стандартне слово за словником: власні назви та друкарські помилки не змінюємо.
     const known = options.known ? word => options.known(word) || (/ости$/u.test(word) && options.known(word.slice(0, -1) + 'і')) : () => true;
     const words = tokenize(text);
-    const changes = [], reviews = [], out = [], starts = [];
+    const changes = [], reviews = [], pending = [], out = [], starts = [];
     let output = '', cursor = 0;
     words.forEach((word, index) => {
       output += text.slice(cursor, word.start);
@@ -306,13 +365,10 @@
         if (enabled[rule.group] && (!isTelegram || socialPlatformContext(words, index, text)) && (word.lower !== 'тг' || isTgChannel)) {
           replacement = caseLike(word.value, rule.to); label = rule.label;
         }
-      } else if (SHIFTED.has(word.lower)) {
-        const shifted = enabled.loans && shiftedNoun(words, index, text, out);
+      } else if (shiftedParts(word.lower)) {
+        const shifted = enabled.loans && shiftedNoun(words, index, text, out, shiftedParts(word.lower));
         if (shifted?.to) { replacement = caseLike(word.value, shifted.to); label = 'Запозичення: жіночий рід за РВН'; }
-        else if (shifted?.review) {
-          const start = starts[shifted.review.first];
-          reviews.push({ start, end: output.length + word.value.length, from: output.slice(start) + word.value, replacements: shifted.review.replacements, message: shifted.review.message });
-        }
+        else if (shifted?.review) pending.push(shifted.review);
       } else {
         const derived = rootForm(word.lower, enabled);
         // Слово, яке словник знає лише з великої літери, — власна назва: тільки підказка.
@@ -333,6 +389,12 @@
       if (replacement !== word.value) changes.push({ from: word.value, to: replacement, rule: label, start: output.length, end: output.length + replacement.length });
       out[index] = replacement; output += replacement; cursor = word.end;
     });
+    for (const review of pending) {
+      const { first, last, replacements } = review.build();
+      const start = starts[first], end = starts[last] + out[last].length;
+      reviews.push({ start, end, from: output.slice(start, end), replacements, message: review.message });
+    }
+    reviews.sort((a, b) => a.start - b.start);
     return { text: output + text.slice(cursor), changes, reviews };
   }
 
@@ -344,7 +406,9 @@
     roots: () => ROOTS.map(rule => ({ ...rule, status: lower => rootStatus(rule, lower) })),
     accepted: word => {
       const lower = word.toLocaleLowerCase('uk');
-      return accepted.has(lower) || (lower.startsWith('медія') && MEDIA_COMPOUND.test(lower.slice('медія'.length)));
+      const compound = lower.match(/^(\p{L}+?)((?:кляс|зал)\p{L}*)$/u);
+      return accepted.has(lower) || (lower.startsWith('медія') && MEDIA_COMPOUND.test(lower.slice('медія'.length)))
+        || Boolean(compound && SHIFTED_COMPOUND.test(compound[1] + 'клас') && accepted.has(compound[2]));
     },
     acceptedAbbreviation: word => abbreviations.has(word.toLocaleLowerCase('uk')),
     rvnWords: () => [...accepted],

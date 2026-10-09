@@ -69,7 +69,7 @@
       replace(/"([^"\n]+)"/gu, (_, inside) => '«' + inside + '»', 'Українські парні лапки.');
       replace(/([А-Яа-яІіЇїЄєҐґ»]) - (?=[А-Яа-яІіЇїЄєҐґ«])/gu, (_, before) => before + ' — ', 'Тире між частинами вислову.');
       replace(/([\p{L}\p{M}\p{N}])(?=[([{])/gu, (_, before) => before + ' ', 'Пробіл перед відкривною дужкою.');
-      replace(/([([{])[ \t]+/gu, '$1', 'Після відкривної дужки пробіл не ставимо.');
+      replace(/([([{])[ \t]+/gu, (_, bracket) => bracket, 'Після відкривної дужки пробіл не ставимо.');
       replace(new RegExp(`([\\p{L}\\p{M}\\p{N}])(${SMILE})`, 'gu'), (_, before, smile) => before + ' ' + smile, 'Пробіл між словом і смайликом.');
       replace(new RegExp(`(${SMILE})([\\p{L}\\p{N}])`, 'gu'), (_, smile, after) => smile + ' ' + after, 'Пробіл між смайликом і словом.');
       return { text, changes };

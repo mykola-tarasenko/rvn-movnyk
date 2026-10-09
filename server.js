@@ -67,7 +67,11 @@ function cleanWord(value) {
   return word.length <= 99 && /^[\p{L}\p{M}]+(?:['’ʼ-][\p{L}\p{M}]+)*$/u.test(word) ? word : null;
 }
 
-const staticFiles = new Set(['index.html', 'app.js', 'proofreading-worker.js', 'styles.css', 'vendor/dictionary-uk-GPL-3.0.txt']);
+// Віддаємо лише сторінку та локальні файли, на які вона посилається (стилі, скрипти, ліцензія):
+// новий файл у index.html не потрібно окремо дописувати сюди.
+const page = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const staticFiles = new Set(['index.html', ...[...page.matchAll(/(?:href|src)="([\w./-]+)(?:\?[^"]*)?"/g)].map(match => match[1])
+  .filter(file => !file.startsWith('/') && !file.includes('..') && fs.existsSync(path.join(root, file)))]);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.txt': 'text/plain; charset=utf-8' };
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
@@ -102,7 +106,7 @@ const server = http.createServer(async (req, res) => {
     if (!staticFiles.has(relative)) return json(res, 404, { error: 'Не знайдено.' });
     const filename = path.join(root, relative);
     const content = fs.readFileSync(filename);
-    res.writeHead(200, { 'Content-Type': types[path.extname(filename)], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': relative === 'proofreading-worker.js' ? 'no-cache' : 'no-store' });
+    res.writeHead(200, { 'Content-Type': types[path.extname(filename)] || 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': relative === 'proofreading-worker.js' ? 'no-cache' : 'no-store' });
     res.end(req.method === 'HEAD' ? undefined : content);
   } catch (error) {
     if (!res.headersSent) json(res, 500, { error: error.message || 'Помилка сервера.' });
