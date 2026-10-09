@@ -48,6 +48,21 @@ test('український словник знаходить друкарсь�
   assert.equal(custom.issues.filter(i => i.type === 'spelling').length, 0);
 });
 
+test('похідні слова РВН проходять перевірку написання, власні назви отримують лише підказку', () => {
+  const result = analyze('Плянування, матеріялізм, мітологія, етерний, аґентство, европейці й клясний.', { euphony: false });
+  assert.deepEqual(result.issues.filter(i => i.type === 'spelling').map(i => i.from), []);
+  assert.equal(analyze('Запланували міфологічний марафон.', { euphony: false }).text, 'Заплянували мітологічний маратон.');
+  const names = analyze('Звіт Держаудитслужби.', { euphony: false });
+  assert.equal(names.text, 'Звіт Держаудитслужби.');
+  assert.ok(names.issues.some(i => i.type === 'rvn' && i.replacements.includes('Державдитслужби')));
+});
+
+test('підказки правопису РВН мають власну категорію й точні межі', () => {
+  const result = analyze('Ми зайшли у великий зал. Нова планка.', { euphony: false });
+  assert.deepEqual(result.issues.filter(i => i.type === 'rvn').map(i => [i.from, i.replacements]), [['великий зал', ['велику залю']], ['планка', ['плянка']]]);
+  for (const issue of result.issues) assert.equal(result.text.slice(issue.start, issue.end), issue.from);
+});
+
 test('спільні винятки доступні всім без особистого словника', () => {
   const result = analyze('Без пам\'яті немає донату. Приуроченого заходу ім. Шевченка.', { euphony: false });
   assert.equal(result.text, 'Без пам’яти немає донату. Приуроченого заходу ім. Шевченка.');
