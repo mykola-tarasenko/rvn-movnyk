@@ -38,6 +38,23 @@
   // Іменники спільного роду та чоловічого роду на -а/-я, -о: рід за закінченням не визначаємо.
   const COMMON_GENDER = new Set('голова суддя староста колега сирота слуга бідолаха нероба листоноша воєвода задира базіка вбивця убивця п\'яниця гуляка тато дідо'.split(' '));
   const NOT_ADJECTIVES = new Set('мій твій свій чий'.split(' '));
+  // Вставні слова всередині речення: «Ми, на жаль, не встигли».
+  // «звичайно» всередині речення часто означає «зазвичай» («Він звичайно приходить о 9»), тож його тут немає.
+  const PARENTHETICALS = ['на жаль', 'на щастя', 'до речі', 'наприклад', 'мабуть', 'напевно', 'безперечно', 'без сумніву', 'щоправда',
+    'по-перше', 'по-друге', 'по-третє', 'як відомо', 'на мою думку', 'на нашу думку', 'крім того', 'можливо', 'очевидно', 'зрештою'];
+  const PARENTHETICAL = new RegExp(`(?<![\\p{L}-])(${PARENTHETICALS.join('|')})(?![\\p{L}-])`, 'giu');
+  // Після цих слів вставне слово є присудком або обставиною: «Це можливо», «дуже до речі», «як звичайно».
+  const NOT_PARENTHETICAL_AFTER = new Set('це цілком не дуже було буде є все теж також як вже абсолютно так зовсім'.split(' '));
+  // Дієприслівник без залежних слів часто вжито як прислівник: «працював сидячи», «ішов не поспішаючи».
+  const ADVERBIAL = new Set('сидячи стоячи лежачи мовчки жартома поспішаючи'.split(' '));
+  // Назви осіб: їхній називний множини не збігається зі знахідним, тож «Учні прийшли» — підмет.
+  const ANIMATE = new Set(('людина учень учениця студент студентка волонтер волонтерка учасник учасниця працівник працівниця жінка чоловік ' +
+    'хлопець гість член експерт партнер лікар вчитель вчителька батько друг сусід ветеран захисник захисниця мешканець активіст активістка ' +
+    'журналіст журналістка депутат науковець фахівець організатор викладач викладачка тренер читач слухач глядач').split(' '));
+  const PLURAL_ONLY_PEOPLE = new Set(['діти', 'люди', 'друзі', 'батьки']);
+  const DATIVE_PRONOUN = { вас: 'вам', тебе: 'тобі', нас: 'нам', мене: 'мені' };
+  // Подвоєний приголосний + я зазвичай означає середній рід (рішення, життя), але не в цих словах.
+  const FEMININE_DOUBLED = new Set(['стаття', 'рілля']);
 
   function create(spell) {
     const available = typeof spell.bases === 'function' && typeof spell.forms === 'function';
@@ -88,7 +105,7 @@
       const lemma = candidates.find(form => spell.inflected(form));
       const lower = lemma ? lemma.toLocaleLowerCase('uk') : '';
       if (!lemma || isVerbLemma(lower) || isAdjectiveLemma(lower) || COMMON_GENDER.has(lower) || /ько$/u.test(lower)) return null;
-      if (/([бвгґджзклмнпрстфхцчшщ])\1я$/u.test(lower)) return 'n';
+      if (/([бвгґджзклмнпрстфхцчшщ])\1я$/u.test(lower)) return FEMININE_DOUBLED.has(lower) ? 'f' : 'n';
       if (/'я$/u.test(lower)) return null;
       // Середній рід на -а/-я з нарощенням: кошеня — кошеняти, ім'я — імені.
       if (/[ая]$/u.test(lower)) return spell.forms(lemma).some(form => form === lemma + 'ти' || form === lemma.slice(0, -1) + 'ені') ? 'n' : 'f';
@@ -121,8 +138,109 @@
       || (verbLemmas(word.lower) && ['i2s', 'i1p', 'i2p', '2s', '2p', 'f2s', 'f2p'].includes(slot(word.lower, verbLemmas(word.lower)[0])));
     const nounLike = word => { const found = bases(word.lower); return found.length > 0 && found.every(lemma => spell.inflected(lemma) && !isVerbLemma(lemma) && !isAdjectiveLemma(lemma)); };
 
+    // Прямі форми іменника для узгодження з числівником: lemma — називний однини, few — називний множини (2–4),
+    // many — родовий множини (5+), genSing — родовий однини (дроби). Неоднозначні основи пропускаємо.
+    function nounParadigm(value) {
+      const found = bases(value.toLocaleLowerCase('uk').replace(/[’ʼ]/gu, "'"));
+      const lemma = found[0];
+      if (found.length !== 1 || !spell.inflected(lemma) || isVerbLemma(lemma) || isAdjectiveLemma(lemma)) return null;
+      const forms = spell.forms(lemma), gender = nounGender(lemma);
+      // Орудний і давальний (будинками, дневі, ніччю) — не прямі форми, тож відкидаємо їх одразу.
+      const pick = test => forms.filter(form => test(form) && !/(?:ами|ями|ові|еві|єві|ою|ею|єю|([бвгґджзклмнпрстфхцчшщ])\1ю)$/u.test(form));
+      // Родовий множини з нульовим закінченням (книг, міст, гривень, подій), але не -ам/-ах/-ом (книгам, містом).
+      // Якщо є форма на -и (зошити, книги), то форма на -і — місцевий чи давальний (зошиті, книзі).
+      const plural = list => list.some(form => /и$/u.test(form)) ? list.filter(form => !/[ії]$/u.test(form)) : list;
+      const zero = () => pick(form => /(?:ей|ів|їв|[бвгґджзклмнпрстфхцчшщьй])$/u.test(form) && !/(?:ам|ям|ах|ях|ом|ем|єм|ами|ями)$/u.test(form));
+      let few, many, genSing;
+      if (/[бвгґджзклмнпрстфхцчшщй]$/u.test(lemma)) {
+        // Без певного роду (ніч, подорож) родовий однини може бути й на -і.
+        few = plural(pick(form => /[иії]$/u.test(form)));
+        many = pick(form => /(?:ів|їв|ей)$/u.test(form));
+        genSing = pick(form => (gender ? /[аяую]$/u : /[аяуюиі]$/u).test(form));
+      } else if (/ь$/u.test(lemma)) {
+        few = pick(form => /[іи]$/u.test(form));
+        many = pick(form => /(?:ів|їв|ей)$/u.test(form));
+        genSing = pick(form => /[аяіи]$/u.test(form));
+      } else if (gender === 'f') {
+        few = genSing = plural(pick(form => /[иії]$/u.test(form)));
+        many = zero();
+      } else if (gender === 'n' && (!/я$/u.test(lemma) || /([бвгґджзклмнпрстфхцчшщ])\1я$/u.test(lemma))) {
+        few = genSing = /я$/u.test(lemma) ? [lemma] : pick(form => /[ая]$/u.test(form));
+        many = zero();
+      } else return null;
+      // Для одиниць міри родовий однини на -а звичніший: «1,5 літра», «2,5 метра».
+      genSing = [...genSing].sort((a, b) => /[ая]$/u.test(b) - /[ая]$/u.test(a));
+      return many.length && few.length ? { lemma, gender, few, many, genSing } : null;
+    }
+
+    // Підмет-іменник, рід якого видно напевно: жіночий рід однини (знахідний інший: книгу) або назви осіб у множині.
+    function subjectNumber(word) {
+      if (PLURAL_ONLY_PEOPLE.has(word.lower)) return 'plural';
+      const found = bases(word.lower);
+      if (found.length !== 1) return null;
+      const lemma = found[0];
+      if (word.lower === lemma && nounGender(lemma) === 'f' && /[ая]$/u.test(lemma) && spell.inflected(lemma)) return 'feminine';
+      // Назва особи чоловічого роду в називному множини: «учні», «студенти» (не «учневі»).
+      if (ANIMATE.has(lemma) && word.lower !== lemma && /[бвгґджзклмнпрстфхцчшщйь]$/u.test(lemma) && /[иі]$/u.test(word.lower) && !/(?:ові|еві|єві)$/u.test(word.lower)) return 'plural';
+      return null;
+    }
+    // Особова форма дієслова; форма може збігатися з дієприкметником (відпочила — відпочилий).
+    const finiteVerb = word => {
+      const found = bases(word.lower), lemma = found.find(isVerbLemma);
+      if (!lemma || !found.every(item => isVerbLemma(item) || isAdjectiveLemma(item))) return null;
+      const current = slot(word.lower, lemma);
+      return TENSES.some(list => list.includes(current)) ? current : null;
+    };
+    const participle = word => word.lower === 'незважаючи' || (verbLemmas(word.lower) && ['ga', 'gp'].includes(slot(word.lower, verbLemmas(word.lower)[0])));
+
     return {
       available,
+      // Вставні слова в середині речення; на початку речення їх перевіряє proofreader.js.
+      parentheticals({ text, issue }) {
+        const message = 'Ймовірний вставний вислів: відокремте його комами, якщо він не є членом речення.';
+        for (const match of text.matchAll(PARENTHETICAL)) {
+          const start = match.index, end = start + match[0].length;
+          const before = text.slice(0, start), after = text.slice(end);
+          if (/(?:^|[.!?…\n])\s*$/u.test(before)) continue;
+          const previous = (before.match(/(\p{L}+)\s*$/u) || [])[1]?.toLocaleLowerCase('uk');
+          const next = (after.match(/^\s*(\p{L}+)/u) || [])[1]?.toLocaleLowerCase('uk');
+          if (NOT_PARENTHETICAL_AFTER.has(previous) || !next || (match[0].toLocaleLowerCase('uk') === 'крім того' && ['що', 'як'].includes(next))) continue;
+          const left = /[\p{L}\d»"')][ \t]+$/u.test(before), right = /^[ \t]+\p{L}/u.test(after);
+          if (!left && !right) continue;
+          const from = left ? before.match(/[ \t]+$/u).index : start, to = right ? end + after.match(/^[ \t]+/u)[0].length : end;
+          issue(from, to, 'punctuation', message, [(left ? ', ' : '') + match[0] + (right ? ', ' : '')]);
+        }
+      },
+      // Дієприслівниковий зворот: «Читаючи книгу, він заснув», «Він пішов, не попрощавшись».
+      participles({ text, words, issue, joined }) {
+        if (!available) return;
+        const message = 'Ймовірний дієприслівниковий зворот: відокремте його комою.';
+        const comma = index => {
+          let position = words[index].start;
+          while (position > 0 && /[ \t]/u.test(text[position - 1])) position--;
+          if (position > 0 && !/[,;:.!?—–(\n]/u.test(text[position - 1])) issue(position, words[index].start, 'punctuation', message, [', ']);
+        };
+        words.forEach((word, index) => {
+          if (word.protected || !participle(word) || ADVERBIAL.has(word.lower)) return;
+          const next = words[index + 1];
+          if (!next || !joined(word, next)) return;
+          const negated = index > 0 && words[index - 1].lower === 'не' && joined(words[index - 1], word);
+          const head = negated ? index - 1 : index;
+          const sentenceStart = head === 0 || /[.!?…\n]/u.test(text.slice(words[head - 1].end, words[head].start));
+          if (!sentenceStart) {
+            const previous = words[head - 1];
+            if (joined(previous, words[head]) && !['і', 'й', 'та', 'а', 'але', 'або', 'чи', 'не'].includes(previous.lower)) comma(head);
+            return;
+          }
+          // На початку речення зворот закінчується перед підметом-займенником або перед присудком (і його підметом).
+          for (let k = index + 1; k < Math.min(words.length, index + 9) && joined(words[k - 1], words[k]); k++) {
+            if (PERSONS[words[k].lower]) { comma(k); return; }
+            if (finiteVerb(words[k])) { comma(k - 1 > index + 1 && words[k - 1].lower === bases(words[k - 1].lower)[0] && subjectNumber(words[k - 1]) ? k - 1 : k); return; }
+          }
+        });
+      },
+      nounParadigm: word => available ? nounParadigm(word) : null,
+      adjective: word => available && bases(word.toLocaleLowerCase('uk').replace(/[’ʼ]/gu, "'")).some(isAdjectiveLemma),
       // Початок підрядного речення, перед яким потрібна кома, або -1.
       clauseStart(words, index, joined) {
         if (!available) return -1;
@@ -183,6 +301,24 @@
               if (options.length) issue(verb.start, verb.end, 'grammar', `Форма дієслова має узгоджуватися із займенником «${word.value}».`, options.map(option => engine.caseLike(verb.value, option)));
             }
           }
+          // Підмет-іменник і дієслово: «Дівчина прийшов» → «прийшла», «Діти грає» → «грають».
+          const number = next && joined(word, next) && !coordinated && !(previous && PREPOSITIONS.has(previous.lower)) && subjectNumber(word);
+          if (number) {
+            const verb = next.lower === 'не' && words[index + 2] && joined(next, words[index + 2]) ? words[index + 2] : next;
+            const current = !verb.protected && verb.lower !== 'є' && finiteVerb(verb);
+            const tense = TENSES.findIndex(list => list.includes(current));
+            const allowed = number === 'plural' ? [['3p'], ['f3p'], ['pl']] : [['3s'], ['f3s'], ['pf']];
+            if (tense > -1 && !allowed[tense].includes(current)) {
+              const lemma = bases(verb.lower).find(isVerbLemma);
+              const options = [...new Set(allowed[tense].map(wanted => formFor(lemma, wanted, verb.lower)).filter(Boolean).map(form => likeWritten(verb.lower, form)))];
+              if (options.length) issue(verb.start, verb.end, 'grammar', `Форма дієслова має узгоджуватися з підметом «${word.value}».`, options.map(option => engine.caseLike(verb.value, option)));
+            }
+          }
+          // Керування: «дякую вас» → «дякую вам»; «вибачаюсь» → «перепрошую».
+          if (next && joined(word, next) && DATIVE_PRONOUN[next.lower] && bases(word.lower).includes('дякувати'))
+            issue(next.start, next.end, 'grammar', '«Дякувати» вимагає давального відмінка: дякую кому?', [engine.caseLike(next.value, DATIVE_PRONOUN[next.lower])]);
+          if (bases(word.lower).includes('вибачатися') && ['1s', '1p'].includes(slot(word.lower, 'вибачатися')))
+            issue(word.start, word.end, 'grammar', 'Про власну провину кажемо «перепрошую» або «вибачте».', [engine.caseLike(word.value, slot(word.lower, 'вибачатися') === '1s' ? 'перепрошую' : 'перепрошуємо')]);
           // Прикметник у називному відмінку однини та іменник у початковій формі.
           if (next && joined(word, next) && !next.protected) {
             // Прикметник може збігатися з формою дієслова (синій — синіти), тож досить однієї основи-прикметника.

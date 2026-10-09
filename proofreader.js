@@ -68,6 +68,11 @@
       replace(/,{2,}/gu, ',', 'Повторена кома.');
       replace(/([,;:!?])(?=[А-Яа-яІіЇїЄєҐґ])/gu, (_, mark) => mark + ' ', 'Пропущений пробіл після розділового знака.');
       replace(/\.\.\./gu, '…', 'Уніфіковано три крапки.');
+      // Діапазон чисел — коротке тире без пробілів (2020–2024), але не телефони, дати ISO, номери й «1-й».
+      replace(/(?<![\d№/.:,-]\s?|[\d-])(\d{1,4})\s?[-–—]\s?(\d{1,4})(?![\d\p{L}]|[-–/.:,]\d)/gu, (match, from, to) => Number(to) > Number(from) ? from + '–' + to : match, 'Діапазон чисел пишемо через коротке тире без пробілів.');
+      // Число й одиниця міри або знак номера: «100 грн», «5 кг», «№ 5».
+      replace(/(\d)(грн|коп|кг|км|см|мм|мл|га|год|хв|тис|млн|млрд|л|г|м|т)(?![\p{L}\d])/gu, (_, number, unit) => number + ' ' + unit, 'Між числом і скороченою назвою одиниці ставимо пробіл.');
+      replace(/№(?=\d)/gu, '№ ', 'Після знака номера ставимо пробіл.');
       replace(/"([^"\n]+)"/gu, (_, inside) => '«' + inside + '»', 'Українські парні лапки.');
       replace(/([А-Яа-яІіЇїЄєҐґ»]) - (?=[А-Яа-яІіЇїЄєҐґ«])/gu, (_, before) => before + ' — ', 'Тире між частинами вислову.');
       replace(/([\p{L}\p{M}\p{N}])(?=[([{])/gu, (_, before) => before + ' ', 'Пробіл перед відкривною дужкою.');
@@ -145,7 +150,7 @@
 
       if (settings.punctuation) {
         // A comma is suggested, never silently inserted at a conjectured clause boundary.
-        matches(/(^|[.!?]\s+)(На жаль|На щастя|Без сумніву|Безперечно|По-перше|По-друге|Отже|Будь ласка)([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
+        matches(/(^|[.!?]\s+)(На жаль|На щастя|Без сумніву|Безперечно|По-перше|По-друге|По-третє|Отже|Будь ласка|Звичайно|Мабуть|Напевно|Наприклад|До речі|Щоправда|Як відомо|На мою думку|На нашу думку|Зрештою|Очевидно|Крім того(?! (?:що|як)))([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
           const start = m.index + m[1].length;
           issue(start, start + m[2].length, 'punctuation', 'Ймовірний вставний вислів: відокремте його комою, якщо він не є членом речення.', [m[2] + ',']);
         });
@@ -156,6 +161,8 @@
         });
         // Будь-яке ім'я чи звертання перед наказовим способом або після привітання: «Тарасе, зроби», «Дякую, Олено».
         rules.addresses({ text, words, issue, joined: contiguous });
+        rules.parentheticals({ text, issue });
+        rules.participles({ text, words, issue, joined: contiguous });
         const subordinators = new Set(['що', 'щоб', 'якщо', 'коли', 'хоча', 'оскільки', 'бо', 'якби', 'доки']);
         const contrasts = new Set(['але', 'проте', 'однак']);
         words.forEach((word, index) => {
@@ -198,7 +205,7 @@
       }
 
       if (settings.numerals) numerals.check(text, ranges, (start, end, reason, replacements) =>
-        issue(start, end, 'number', reason, replacements.map(value => engine.caseLike(text.slice(start, end), value))), spell);
+        issue(start, end, 'number', reason, replacements.map(value => engine.caseLike(text.slice(start, end), value))), spell, rules);
 
       if (settings.grammar) {
         const phrases = [

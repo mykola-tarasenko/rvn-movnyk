@@ -200,7 +200,11 @@
     if (!next || !plain(word, next)) return null;
     const prev = words[index - 1];
     const before = prev && !/[,.!?;:\n—–]/u.test(text.slice(prev.end, word.start)) ? (out[index - 1] ?? prev.value).toLocaleLowerCase('uk') : '';
-    if (lower === 'з') return /^(?:[сзшжщ][бвгґджзклмнпрстфхцчшщ]|мною|льв)/u.test(next.lower) ? 'зі' : null;
+    if (lower === 'з') {
+      if (/^(?:[сзшжщ][бвгґджзклмнпрстфхцчшщ]|мною|льв)/u.test(next.lower)) return 'зі';
+      // Між приголосними перед свистячим чи шиплячим — «із»: «пішов із сестрою», «брат із Чернігова».
+      return before && !VOWEL.test(before) && !['й', 'і'].includes(before) && /^[зсцчшщж][аеєиіїоуюя]/u.test(next.lower) ? 'із' : null;
+    }
     if (lower === 'у' || lower === 'в') {
       if (/^(?:в|ф|св|хв|тв|льв)/u.test(next.lower)) return 'у';
       if (FIRST_VOWEL.test(next.lower)) return 'в';
