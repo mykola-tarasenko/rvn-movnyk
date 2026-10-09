@@ -49,19 +49,47 @@ function createSpell(aff, dic) {
     if (!codes || !codes.includes(flag) || (entry.match && !entry.match.test(base))) return false;
     return (entry.remove ? base.replace(entry.remove, '') : base) + entry.add === word;
   }
-  function lookup(word) {
-    if (typeof word !== 'string') return undefined;
+  // Усі основи словника, від яких утворено слово: «працює» → [«працювати»].
+  function bases(word, first = false) {
+    const found = [];
     const own = stems.get(word);
-    if (own && !(needAffix && own.includes(needAffix))) return own;
+    if (own && !(needAffix && own.includes(needAffix))) { found.push(word); if (first) return found; }
     for (let size = Math.min(longest, word.length); size >= 0; size--) {
       const candidates = suffixes.get(word.slice(word.length - size));
       if (!candidates) continue;
       const stem = word.slice(0, word.length - size);
       // Основа зі знятою частиною (strip) або, якщо умова її не гарантує, без неї — як у nspell.
-      for (const suffix of candidates) if (produces(stem + suffix.strip, suffix, word) || (suffix.strip && produces(stem, suffix, word))) return NO_RULES;
+      for (const suffix of candidates) {
+        for (const base of suffix.strip ? [stem + suffix.strip, stem] : [stem]) {
+          if (produces(base, suffix, word) && !found.includes(base)) { found.push(base); if (first) return found; }
+        }
+      }
     }
-    return undefined;
+    return found;
   }
+  function lookup(word) {
+    if (typeof word !== 'string') return undefined;
+    const own = stems.get(word);
+    if (own && !(needAffix && own.includes(needAffix))) return own;
+    return bases(word, true).length ? NO_RULES : undefined;
+  }
+  // Усі форми основи: «брати» → беру, береш, бере, брав…
+  function forms(base) {
+    const codes = stems.get(base);
+    if (!codes) return [];
+    const result = needAffix && codes.includes(needAffix) ? [] : [base];
+    for (const code of codes) {
+      for (const entry of spell.rules[code]?.entries || []) {
+        if (entry.match && !entry.match.test(base)) continue;
+        const form = (entry.remove ? base.replace(entry.remove, '') : base) + entry.add;
+        if (!result.includes(form)) result.push(form);
+      }
+    }
+    return result;
+  }
+  spell.bases = word => typeof word === 'string' ? bases(word) : [];
+  spell.forms = forms;
+  spell.inflected = word => (stems.get(word) || NO_RULES).length > 0;
   spell.data = new Proxy(Object.create(null), {
     get: (_, word) => lookup(word),
     has: (_, word) => lookup(word) !== undefined
