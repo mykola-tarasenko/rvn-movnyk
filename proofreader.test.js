@@ -168,6 +168,14 @@ test('оформлення не змінює посилання, пошту, к�
   for (const issue of result.issues) assert.equal(result.text.slice(issue.start, issue.end), issue.from);
 });
 
+test('діапазони чисел, одиниці міри й знак номера', () => {
+  const opts = { euphony: false, spelling: false, numerals: false, punctuation: false, grammar: false };
+  assert.equal(analyze('Рік 2020-2024, для 10-15 осіб, сторінки 15 - 20.', opts).text, 'Рік 2020–2024, для 10–15 осіб, сторінки 15–20.');
+  assert.equal(analyze('Ціна 100грн, вага 5кг, відстань 10км. Наказ №5.', opts).text, 'Ціна 100 грн, вага 5 кг, відстань 10 км. Наказ № 5.');
+  const untouched = 'Телефон 067-123-45-67, дата 2024-01-15, рахунок 3-1, 1-й етап, 1990-х років, версія 2.0-3.1, https://example.com/2020-2024';
+  assert.equal(analyze(untouched, opts).text, untouched);
+});
+
 test('дужки навколо звичайних і Markdown-посилань залишаються видимими для перевірки', () => {
   const url = 'https://www.instagram.com/odesi_600?stkn=MWJ1Mjk5OXZja2dqcQ==';
   const firstUrl = 'https://www.instagram.com/karrrynnaa?stkn=MWd6Y3I0OGFuMjlmZw%3D%3D&utm_source=qr';
