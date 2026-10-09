@@ -145,7 +145,7 @@
 
       if (settings.punctuation) {
         // A comma is suggested, never silently inserted at a conjectured clause boundary.
-        matches(/(^|[.!?]\s+)(На жаль|На щастя|Без сумніву|Безперечно|По-перше|По-друге|Отже|Будь ласка)([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
+        matches(/(^|[.!?]\s+)(На жаль|На щастя|Без сумніву|Безперечно|По-перше|По-друге|По-третє|Отже|Будь ласка|Звичайно|Мабуть|Напевно|Наприклад|До речі|Щоправда|Як відомо|На мою думку|На нашу думку|Зрештою|Очевидно|Крім того(?! (?:що|як)))([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
           const start = m.index + m[1].length;
           issue(start, start + m[2].length, 'punctuation', 'Ймовірний вставний вислів: відокремте його комою, якщо він не є членом речення.', [m[2] + ',']);
         });
@@ -156,6 +156,8 @@
         });
         // Будь-яке ім'я чи звертання перед наказовим способом або після привітання: «Тарасе, зроби», «Дякую, Олено».
         rules.addresses({ text, words, issue, joined: contiguous });
+        rules.parentheticals({ text, issue });
+        rules.participles({ text, words, issue, joined: contiguous });
         const subordinators = new Set(['що', 'щоб', 'якщо', 'коли', 'хоча', 'оскільки', 'бо', 'якби', 'доки']);
         const contrasts = new Set(['але', 'проте', 'однак']);
         words.forEach((word, index) => {
