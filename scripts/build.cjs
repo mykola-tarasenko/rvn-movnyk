@@ -1,7 +1,18 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const esbuild = require('esbuild');
 const project = path.resolve(__dirname, '..');
+
+// Мітка версії за вмістом: браузер і GitHub Pages кешують стилі та скрипти, тож після оновлення
+// сторінка має посилатися на нову адресу файла (app.js?v=…), інакше показує стару версію.
+const assetVersion = file => crypto.createHash('sha256').update(fs.readFileSync(path.join(project, file))).digest('hex').slice(0, 10);
+function stampAssets() {
+  const page = path.join(project, 'index.html');
+  const html = fs.readFileSync(page, 'utf8').replace(/((?:href|src)=")([\w./-]+\.(?:css|js))(?:\?v=[^"]*)?"/g,
+    (match, attribute, file) => fs.existsSync(path.join(project, file)) ? `${attribute}${file}?v=${assetVersion(file)}"` : match);
+  fs.writeFileSync(page, html);
+}
 
 async function build() {
   const dictionary = path.join(project, 'node_modules', 'dictionary-uk');
@@ -27,6 +38,8 @@ async function build() {
   fs.copyFileSync(path.join(project, 'node_modules', 'nspell', 'license'), path.join(vendor, 'nspell-MIT.txt'));
   const isBuffer = path.join(path.dirname(require.resolve('nspell')), '..', '..', 'is-buffer', 'LICENSE');
   if (fs.existsSync(isBuffer)) fs.copyFileSync(isBuffer, path.join(vendor, 'is-buffer-MIT.txt'));
-  console.log('Built offline worker (' + Math.round(result.outputFiles[0].contents.length / 1024) + ' KiB); dictionary source and licenses copied to vendor/.');
+  stampAssets();
+  console.log('Built offline worker (' + Math.round(result.outputFiles[0].contents.length / 1024) + ' KiB); dictionary source and licenses copied to vendor/; asset versions stamped in index.html.');
 }
-build().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) build().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { assetVersion };
