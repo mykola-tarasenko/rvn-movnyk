@@ -170,6 +170,7 @@ test('пробіли навколо смайликів, включно зі ск
   assert.equal(first.text, expected);
   assert.equal(analyze(first.text, { euphony: false }).text, expected);
   assert.equal(analyze('Слово🙂слово', { typography: false }).text, 'Слово🙂слово');
+  assert.equal(analyze('Програма( деталі нижче) і [ ще ].', { euphony: false }).text, 'Програма (деталі нижче) і [ще ].');
 });
 
 test('коми при звертанні, вставному вислові та підрядній частині — лише пропозиції', () => {
@@ -209,4 +210,16 @@ test('після застосування підказки зміщення ре
   const rechecked = analyze(changed);
   for (const issue of rechecked.issues) assert.equal(rechecked.text.slice(issue.start, issue.end), issue.from);
   assert.ok(rechecked.issues.some(i => i.from === 'помилкка'));
+});
+
+test('приклад на сторінці показує кожну групу правил', () => {
+  const app = fs.readFileSync('app.js', 'utf8');
+  const sample = require('node:vm').runInNewContext(app.match(/const SAMPLE = (\[[\s\S]*?\]\.join\('\\n\\n'\))/)[1]);
+  const result = analyze(sample);
+  for (const type of ['rvn', 'case', 'spelling', 'punctuation', 'grammar', 'number']) assert.ok(result.issues.some(i => i.type === type), type);
+  for (const fragment of ['Иншого спеціяльного аґента', 'авдиторії на маратон', 'мітологія та етерний', 'европейські', 'плянування нової плятформи',
+    'відповідальности', 'без пам’яти', 'Завдяки можливості', 'у Львові, а зі школи', 'у школу й у кімнату', 'Мама й Олена', '9 кляси прийшли до залі',
+    'Телеґрам-канал та Інстаґрам: https://instagram.com/rvn_example', 'заходу — лекція', 'обговорення (деталі', '«Мова та пам’ять», початок', '18:00 🙂 Чекаємо всіх…'])
+    assert.ok(result.text.includes(fragment), fragment);
+  for (const issue of result.issues) assert.equal(result.text.slice(issue.start, issue.end), issue.from);
 });

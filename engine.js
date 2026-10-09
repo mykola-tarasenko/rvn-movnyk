@@ -206,8 +206,9 @@
       if (FIRST_VOWEL.test(next.lower)) return 'в';
       return before && VOWEL.test(before) ? 'в' : 'у';
     }
-    // Повторювані сполучники та частки зберігаємо.
-    if (words.slice(Math.max(0, index - 5), index).some(w => ['і', 'й'].includes(w.lower)) || words.slice(index + 1, index + 5).some(w => ['і', 'й'].includes(w.lower))) return null;
+    // Повторювані сполучники та частки («і мама, і тато») зберігаємо, але лише в межах речення.
+    const sameSentence = other => !/[.!?…\n]/u.test(text.slice(Math.min(other.end, word.end), Math.max(other.start, word.start)));
+    if ([...words.slice(Math.max(0, index - 5), index), ...words.slice(index + 1, index + 5)].some(w => ['і', 'й'].includes(w.lower) && sameSentence(w))) return null;
     if (/^[йяюєї]/u.test(next.lower)) return 'і';
     // Перед «в» + голосний прийменник лишається «в», тож сполучник — «і»: «мама і в Одесі».
     const after = words[index + 2];
