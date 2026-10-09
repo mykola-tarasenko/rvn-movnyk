@@ -44,7 +44,14 @@ test('елементи сторінки відповідають обробни�
   const ids = [...page.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
   assert.equal(ids.length, new Set(ids).size, 'Унікальні ідентифікатори');
   for (const match of app.matchAll(/\$\('#([\w-]+)'\)/g)) assert.ok(ids.includes(match[1]), match[1]);
-  for (const match of page.matchAll(/<script src="([^"]+)"/g)) assert.ok(fs.existsSync(match[1]), match[1]);
+  for (const match of page.matchAll(/<script src="([^"?]+)/g)) assert.ok(fs.existsSync(match[1]), match[1]);
   assert.equal([...page.matchAll(/\bdata-rule="/g)].length, 9);
   assert.doesNotThrow(() => new vm.Script(app));
+});
+
+test('стилі й скрипти мають мітку версії за поточним вмістом (pnpm build)', () => {
+  const { assetVersion } = require('./scripts/build.cjs');
+  const assets = [...page.matchAll(/(?:href|src)="([\w./-]+\.(?:css|js))(?:\?v=([^"]*))?"/g)];
+  assert.ok(assets.length >= 4);
+  for (const [, file, version] of assets) assert.equal(version, assetVersion(file), `${file}: запустіть pnpm build`);
 });

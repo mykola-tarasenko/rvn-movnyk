@@ -24,7 +24,7 @@
 Необов’язковий запуск сервера й SQLite-бази: `pnpm start`.
 
 
-Збірка: `pnpm build`. Після змін `shared-exceptions.js`, `engine.js`, `numeral-agreement.js`, `proofreader.js`, `lazy-spell.js` або `worker-entry.js` обов’язково перебудуйте `proofreading-worker.js`; сторінка виконує саме цей зібраний код.
+Збірка: `pnpm build`. Після змін `shared-exceptions.js`, `engine.js`, `numeral-agreement.js`, `proofreader.js`, `lazy-spell.js` або `worker-entry.js` обов’язково перебудуйте `proofreading-worker.js`; сторінка виконує саме цей зібраний код. Збірка також ставить у `index.html` мітки версій за вмістом файлів (`app.js?v=…`), тому після публікації браузери завантажують нові стилі й скрипти, а не кешовані. Після будь-якої зміни `app.js` чи CSS теж запускайте `pnpm build`: тест перевіряє, що мітки відповідають файлам.
 
 Аудит коренів: `node scripts/audit-roots.cjs [корінь ...] [--all]` показує за всім словником, які слова кожен корінь змінює, лише пропонує або пропускає. Після додавання чи зміни кореня перегляньте цей перелік і за потреби допишіть винятки (`skip`) або сумнівні слова (`review`).
 
