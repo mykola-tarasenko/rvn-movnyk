@@ -198,7 +198,7 @@
       }
 
       if (settings.numerals) numerals.check(text, ranges, (start, end, reason, replacements) =>
-        issue(start, end, 'number', reason, replacements.map(value => engine.caseLike(text.slice(start, end), value))), spell);
+        issue(start, end, 'number', reason, replacements.map(value => engine.caseLike(text.slice(start, end), value))), spell, rules);
 
       if (settings.grammar) {
         const phrases = [

@@ -38,6 +38,8 @@
   // Іменники спільного роду та чоловічого роду на -а/-я, -о: рід за закінченням не визначаємо.
   const COMMON_GENDER = new Set('голова суддя староста колега сирота слуга бідолаха нероба листоноша воєвода задира базіка вбивця убивця п\'яниця гуляка тато дідо'.split(' '));
   const NOT_ADJECTIVES = new Set('мій твій свій чий'.split(' '));
+  // Подвоєний приголосний + я зазвичай означає середній рід (рішення, життя), але не в цих словах.
+  const FEMININE_DOUBLED = new Set(['стаття', 'рілля']);
 
   function create(spell) {
     const available = typeof spell.bases === 'function' && typeof spell.forms === 'function';
@@ -88,7 +90,7 @@
       const lemma = candidates.find(form => spell.inflected(form));
       const lower = lemma ? lemma.toLocaleLowerCase('uk') : '';
       if (!lemma || isVerbLemma(lower) || isAdjectiveLemma(lower) || COMMON_GENDER.has(lower) || /ько$/u.test(lower)) return null;
-      if (/([бвгґджзклмнпрстфхцчшщ])\1я$/u.test(lower)) return 'n';
+      if (/([бвгґджзклмнпрстфхцчшщ])\1я$/u.test(lower)) return FEMININE_DOUBLED.has(lower) ? 'f' : 'n';
       if (/'я$/u.test(lower)) return null;
       // Середній рід на -а/-я з нарощенням: кошеня — кошеняти, ім'я — імені.
       if (/[ая]$/u.test(lower)) return spell.forms(lemma).some(form => form === lemma + 'ти' || form === lemma.slice(0, -1) + 'ені') ? 'n' : 'f';
@@ -121,8 +123,45 @@
       || (verbLemmas(word.lower) && ['i2s', 'i1p', 'i2p', '2s', '2p', 'f2s', 'f2p'].includes(slot(word.lower, verbLemmas(word.lower)[0])));
     const nounLike = word => { const found = bases(word.lower); return found.length > 0 && found.every(lemma => spell.inflected(lemma) && !isVerbLemma(lemma) && !isAdjectiveLemma(lemma)); };
 
+    // Прямі форми іменника для узгодження з числівником: lemma — називний однини, few — називний множини (2–4),
+    // many — родовий множини (5+), genSing — родовий однини (дроби). Неоднозначні основи пропускаємо.
+    function nounParadigm(value) {
+      const found = bases(value.toLocaleLowerCase('uk').replace(/[’ʼ]/gu, "'"));
+      const lemma = found[0];
+      if (found.length !== 1 || !spell.inflected(lemma) || isVerbLemma(lemma) || isAdjectiveLemma(lemma)) return null;
+      const forms = spell.forms(lemma), gender = nounGender(lemma);
+      // Орудний і давальний (будинками, дневі, ніччю) — не прямі форми, тож відкидаємо їх одразу.
+      const pick = test => forms.filter(form => test(form) && !/(?:ами|ями|ові|еві|єві|ою|ею|єю|([бвгґджзклмнпрстфхцчшщ])\1ю)$/u.test(form));
+      // Родовий множини з нульовим закінченням (книг, міст, гривень, подій), але не -ам/-ах/-ом (книгам, містом).
+      // Якщо є форма на -и (зошити, книги), то форма на -і — місцевий чи давальний (зошиті, книзі).
+      const plural = list => list.some(form => /и$/u.test(form)) ? list.filter(form => !/[ії]$/u.test(form)) : list;
+      const zero = () => pick(form => /(?:ей|ів|їв|[бвгґджзклмнпрстфхцчшщьй])$/u.test(form) && !/(?:ам|ям|ах|ях|ом|ем|єм|ами|ями)$/u.test(form));
+      let few, many, genSing;
+      if (/[бвгґджзклмнпрстфхцчшщй]$/u.test(lemma)) {
+        // Без певного роду (ніч, подорож) родовий однини може бути й на -і.
+        few = plural(pick(form => /[иії]$/u.test(form)));
+        many = pick(form => /(?:ів|їв|ей)$/u.test(form));
+        genSing = pick(form => (gender ? /[аяую]$/u : /[аяуюиі]$/u).test(form));
+      } else if (/ь$/u.test(lemma)) {
+        few = pick(form => /[іи]$/u.test(form));
+        many = pick(form => /(?:ів|їв|ей)$/u.test(form));
+        genSing = pick(form => /[аяіи]$/u.test(form));
+      } else if (gender === 'f') {
+        few = genSing = plural(pick(form => /[иії]$/u.test(form)));
+        many = zero();
+      } else if (gender === 'n' && (!/я$/u.test(lemma) || /([бвгґджзклмнпрстфхцчшщ])\1я$/u.test(lemma))) {
+        few = genSing = /я$/u.test(lemma) ? [lemma] : pick(form => /[ая]$/u.test(form));
+        many = zero();
+      } else return null;
+      // Для одиниць міри родовий однини на -а звичніший: «1,5 літра», «2,5 метра».
+      genSing = [...genSing].sort((a, b) => /[ая]$/u.test(b) - /[ая]$/u.test(a));
+      return many.length && few.length ? { lemma, gender, few, many, genSing } : null;
+    }
+
     return {
       available,
+      nounParadigm: word => available ? nounParadigm(word) : null,
+      adjective: word => available && bases(word.toLocaleLowerCase('uk').replace(/[’ʼ]/gu, "'")).some(isAdjectiveLemma),
       // Початок підрядного речення, перед яким потрібна кома, або -1.
       clauseStart(words, index, joined) {
         if (!available) return -1;
