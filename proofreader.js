@@ -3,6 +3,7 @@
   'use strict';
   const engine = typeof module !== 'undefined' && module.exports ? require('./engine.js') : root.RVNEditor;
   const numerals = typeof module !== 'undefined' && module.exports ? require('./numeral-agreement.js') : root.RVNNumeralAgreement;
+  const grammarRules = typeof module !== 'undefined' && module.exports ? require('./grammar-rules.js') : root.RVNGrammarRules;
   const UK = /[а-яіїєґ]/iu;
   const norm = word => word.normalize('NFC').replace(/[’ʼ`]/g, "'").replace(/\u0301/g, '');
   const DEFAULTS = { initial: true, loans: true, ending: true, euphony: true, typography: true, spelling: true, punctuation: true, grammar: true, numerals: true };
@@ -10,6 +11,7 @@
 
   function create(spell) {
     const suggestionCache = new Map();
+    const rules = grammarRules.create(spell);
     // Похідне слово РВН (плянування, матеріялізм) приймаємо, якщо словник знає його стандартне написання.
     const correct = word => spell.correct(word)
       || engine.standardForms(word.toLocaleLowerCase('uk')).some(form => spell.correct(form) || spell.correct(engine.caseLike(word, form)));
@@ -147,10 +149,13 @@
           const start = m.index + m[1].length;
           issue(start, start + m[2].length, 'punctuation', 'Ймовірний вставний вислів: відокремте його комою, якщо він не є членом речення.', [m[2] + ',']);
         });
-        matches(/(^|[.!?]\s+)((?:Шановні|Дорогі)\s+(?:колеги|друзі|учасники)|Маріє|Олено|Андрію|Друже|Командо)([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
+        // Звертання без наказового способу після нього: «Шановні колеги прошу…», «Друже маємо…».
+        matches(/(^|[.!?]\s+)((?:Шановні|Дорогі|Любі)\s+(?:колеги|друзі|учасники|учасниці|партнери|волонтери|читачі|підписники)|Друже|Командо)([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
           const start = m.index + m[1].length;
-          issue(start, start + m[2].length, 'punctuation', 'Ймовірне звертання на початку речення: після нього потрібна кома.', [m[2] + ',']);
+          issue(start, start + m[2].length, 'punctuation', 'Ймовірне звертання: відокремте його комами.', [m[2] + ',']);
         });
+        // Будь-яке ім'я чи звертання перед наказовим способом або після привітання: «Тарасе, зроби», «Дякую, Олено».
+        rules.addresses({ text, words, issue, joined: contiguous });
         const subordinators = new Set(['що', 'щоб', 'якщо', 'коли', 'хоча', 'оскільки', 'бо', 'якби', 'доки']);
         const contrasts = new Set(['але', 'проте', 'однак']);
         words.forEach((word, index) => {
@@ -159,9 +164,11 @@
           if (!contiguous(previous, word) || previous.protected) return;
           const clause = text.slice(Math.max(0, word.start - 180), word.start).split(/[.!?;\n]/u).at(-1);
           if (!/[а-яіїєґ]/iu.test(clause)) return;
-          if (subordinators.has(word.lower) || contrasts.has(word.lower) || (word.lower === 'як' && /(?:знаю|знаємо|бачу|бачимо|розумію|помітили|поясни)\s+$/iu.test(clause))) {
+          // Підрядне речення після дієслова знання («бачив, як»), відносне після іменника («місто, в якому»).
+          const clauseStart = rules.clauseStart(words, index, contiguous);
+          if (subordinators.has(word.lower) || contrasts.has(word.lower) || clauseStart > -1) {
             if (['і', 'й', 'та', 'або', 'ні', 'не', 'лише', 'тільки', 'саме', 'будь'].includes(previous.lower)) return;
-            let boundary = word.start;
+            let boundary = clauseStart > -1 ? words[clauseStart].start : word.start;
             // Keep compound conjunctions together: comma before the whole group.
             const compound = clause.match(/(?:тому|через те|для того|попри те|незважаючи на те|після того|перед тим)\s+$/iu);
             if (compound && ['що', 'щоб', 'як'].includes(word.lower)) boundary = word.start - compound[0].length;
@@ -198,7 +205,6 @@
           [/згідно (?:до |з )?(наказу|статуту|рішення|договору)/giu, m => 'згідно з ' + ({ наказу: 'наказом', статуту: 'статутом', рішення: 'рішенням', договору: 'договором' }[m[1].toLowerCase()]), '«Згідно з» вимагає орудного відмінка.'],
           [/відповідно (?:з|із) (наказом|статутом|рішенням|договором)/giu, m => 'відповідно до ' + ({ наказом: 'наказу', статутом: 'статуту', рішенням: 'рішення', договором: 'договору' }[m[1].toLowerCase()]), '«Відповідно до» вимагає родового відмінка.'],
           [/на протязі (року|місяця|тижня|дня|години)/giu, m => 'протягом ' + m[1], 'Для проміжку часу вживають «протягом» або «упродовж».'],
-          [/приймати участь/giu, () => 'брати участь', 'Усталена сполука — «брати участь».'],
           [/будьласка/giu, () => 'будь ласка', '«Будь ласка» пишемо окремо.'],
           [/нажаль/giu, () => 'на жаль', '«На жаль» пишемо окремо.']
         ];
@@ -206,35 +212,8 @@
           if (m.index > 0 && /\p{L}/u.test(text[m.index - 1]) || /\p{L}/u.test(text[m.index + m[0].length] || '')) return;
           issue(m.index, m.index + m[0].length, 'grammar', reason, [engine.caseLike(m[0], replace(m))]);
         });
-        // Explicit nominative lexicon avoids guessing gender from an arbitrary final letter.
-        const nouns = {
-          документ: 'm', текст: 'm', лист: 'm', звіт: 'm', наказ: 'm', статут: 'm', проєкт: 'm', плян: 'm', план: 'm', захід: 'm',
-          команда: 'f', організація: 'f', книга: 'f', зустріч: 'f', заява: 'f', робота: 'f', мова: 'f', допомога: 'f', подія: 'f',
-          рішення: 'n', завдання: 'n', питання: 'n', повідомлення: 'n', речення: 'n', слово: 'n',
-          документи: 'p', тексти: 'p', листи: 'p', звіти: 'p', команди: 'p', заходи: 'p',
-        };
-        const stems = 'нов важлив українськ спеціяльн спеціальн матеріяльн матеріальн сучасн велик робоч правильн наступн попередн готов основн спільн'.split(' ');
-        const endings = { m: 'ий', f: 'а', n: 'е', p: 'і' };
-        words.forEach((word, index) => {
-          const next = words[index + 1];
-          if (!next || word.protected || next.protected || !contiguous(word, next) || !nouns[next.lower]) return;
-          for (const stem of stems) {
-            const gender = Object.keys(endings).find(g => word.lower === stem + endings[g]);
-            if (gender && gender !== nouns[next.lower]) {
-              // Forms like «нові рішення» can be plural as well as neuter singular.
-              if (gender === 'p' && nouns[next.lower] === 'n') continue;
-              issue(word.start, word.end, 'grammar', `Перевірте узгодження означення з іменником «${next.value}» у роді та числі.`, [engine.caseLike(word.value, stem + endings[nouns[next.lower]])]);
-              break;
-            }
-          }
-        });
-        const verbs = [['працю', 'працюю', 'працюєш', 'працює', 'працюємо', 'працюєте', 'працюють'], ['зна', 'знаю', 'знаєш', 'знає', 'знаємо', 'знаєте', 'знають'], ['ма', 'маю', 'маєш', 'має', 'маємо', 'маєте', 'мають']];
-        const person = { я: 1, ти: 2, він: 3, вона: 3, воно: 3, ми: 4, ви: 5, вони: 6 };
-        words.forEach((word, index) => {
-          const next = words[index + 1];
-          if (!person[word.lower] || !next || word.protected || next.protected || !contiguous(word, next)) return;
-          for (const forms of verbs) if (forms.slice(1).includes(next.lower) && next.lower !== forms[person[word.lower]]) issue(next.start, next.end, 'grammar', `Форма дієслова має узгоджуватися із займенником «${word.value}».`, [engine.caseLike(next.value, forms[person[word.lower]])]);
-        });
+        // Узгодження займенника з дієсловом і прикметника з іменником, кальки в усіх формах (за словником).
+        rules.grammar({ text, words, issue, joined: contiguous });
       }
       issues.sort((a, b) => a.start - b.start || a.end - b.end || a.type.localeCompare(b.type));
       return { text, changes: [...formatted.changes, ...edited.changes], issues: issues.map((item, i) => ({ ...item, id: i })), dictionaryReady: true };
