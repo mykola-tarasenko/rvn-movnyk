@@ -28,7 +28,7 @@ function workerFailure(message) {
 }
 function startWorker() {
   worker?.terminate(); ready = false; setBusy(false); $('#retry-worker').hidden = true;
-  status.classList.remove('error'); status.textContent = 'Завантажуємо український словник… Перше відкриття може тривати 10–20 секунд.';
+  status.classList.remove('error'); status.textContent = 'Завантажуємо український словник…';
   try {
     if (!window.RVN_WORKER_SOURCE) throw new Error('Не знайдено proofreading-worker.js. Перевірте файли проєкту.');
     const url = URL.createObjectURL(new Blob([window.RVN_WORKER_SOURCE], { type: 'text/javascript' }));
@@ -210,21 +210,26 @@ function renderPersonal() {
     if (current) await analyzeText(current.text);
   }, 'word-chip'));
 }
+// Необов’язковий SQLite-сервер (server.js) працює лише на цьому комп’ютері. Опублікований сайт і файл
+// index.html працюють без сервера: словник у файлах сайту, особисті винятки — у сховищі браузера.
+const localServer = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+function useBrowserDictionary(description, message) {
+  databaseMode = false; shared = { genitive: [], abbreviations: [] };
+  try {
+    const saved = JSON.parse(localStorage.getItem('rvn-personal-words-v1') || '[]');
+    personal = Array.isArray(saved) ? saved.filter(word => typeof word === 'string' && word.length < 100) : [];
+  } catch { personal = []; }
+  $('#exceptions-title').textContent = 'Особистий словник';
+  $('#exceptions-description').textContent = description;
+  status.textContent = message;
+  renderPersonal(); databaseReady = true; startWorker();
+}
 async function connectDatabase() {
   databaseReady = false; ready = false; setBusy(false);
   $('#retry-db').hidden = true;
   status.classList.remove('error');
-  if (location.protocol === 'file:') {
-    databaseMode = false; shared = { genitive: [], abbreviations: [] };
-    try {
-      const saved = JSON.parse(localStorage.getItem('rvn-personal-words-v1') || '[]');
-      personal = Array.isArray(saved) ? saved.filter(word => typeof word === 'string' && word.length < 100) : [];
-    } catch { personal = []; }
-    $('#exceptions-title').textContent = 'Особистий словник';
-    $('#exceptions-description').textContent = 'Винятки зберігаються лише у сховищі цього браузера. Щоб ділитися ними між браузерами, запустіть необов’язкову SQLite-версію сервера.';
-    status.textContent = 'Працюємо локально: з’єднання із сервером не потрібне.';
-    renderPersonal(); databaseReady = true; startWorker(); return;
-  }
+  if (location.protocol === 'file:') return useBrowserDictionary('Винятки зберігаються лише у сховищі цього браузера. Щоб ділитися ними між браузерами, запустіть необов’язкову SQLite-версію сервера.', 'Працюємо локально: з’єднання із сервером не потрібне.');
+  if (!localServer) return useBrowserDictionary('Винятки зберігаються лише у сховищі цього браузера.', 'Працюємо онлайн без сервера: текст перевіряється у вашому браузері.');
   status.textContent = 'Під’єднуємо базу винятків…';
   try {
     const data = await databaseRequest('/api/exceptions');
@@ -233,17 +238,7 @@ async function connectDatabase() {
     $('#exceptions-description').textContent = 'Додані тут слова зберігаються у файлі SQLite на сервері редактора, тож доступні кожному, хто ним користується. Можна додати одне слово або вставити список, розділений комами чи новими рядками.';
     renderPersonal(); databaseReady = true; startWorker();
   } catch {
-    databaseMode = false;
-    try {
-      const saved = JSON.parse(localStorage.getItem('rvn-personal-words-v1') || '[]');
-      personal = Array.isArray(saved) ? saved.filter(word => typeof word === 'string' && word.length < 100) : [];
-    } catch { personal = []; }
-    $('#exceptions-title').textContent = 'Особистий словник';
-    $('#exceptions-description').textContent = 'Винятки зберігаються лише у сховищі цього браузера.';
-    renderPersonal(); databaseReady = true;
-    status.textContent = 'SQLite не під’єднано; користуємося особистим словником у браузері.';
-    status.classList.remove('error'); $('#retry-db').hidden = true;
-    startWorker();
+    useBrowserDictionary('Винятки зберігаються лише у сховищі цього браузера.', 'SQLite не під’єднано; користуємося особистим словником у браузері.');
   }
 }
 function invalidate() {

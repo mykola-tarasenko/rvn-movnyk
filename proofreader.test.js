@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const engine = require('./engine.js');
 const { create } = require('./proofreader.js');
-const spell = require('nspell')(
+const spell = require('./lazy-spell.js').createSpell(
   fs.readFileSync('node_modules/dictionary-uk/index.aff', 'utf8'),
   fs.readFileSync('node_modules/dictionary-uk/index.dic', 'utf8')
 );
@@ -55,6 +55,13 @@ test('похідні слова РВН проходять перевірку н�
   const names = analyze('Звіт Держаудитслужби.', { euphony: false });
   assert.equal(names.text, 'Звіт Держаудитслужби.');
   assert.ok(names.issues.some(i => i.type === 'rvn' && i.replacements.includes('Державдитслужби')));
+});
+
+test('злиті слова з «кляса» і «заля» не вважаються помилками написання', () => {
+  const result = analyze('Учні спецкласу прийшли до кінозали й півкласу.', { euphony: false });
+  assert.equal(result.text, 'Учні спецкляси прийшли до кінозалі й півкляси.');
+  assert.deepEqual(result.issues.filter(i => i.type === 'spelling').map(i => i.from), []);
+  assert.deepEqual(analyze('Кінозаля, спортзалю, майстеркляса.', { euphony: false }).issues.filter(i => i.type === 'spelling').map(i => i.from), []);
 });
 
 test('підказки правопису РВН мають власну категорію й точні межі', () => {

@@ -1,10 +1,10 @@
 'use strict';
-const nspell = require('nspell');
+const { createSpell } = require('./lazy-spell.js');
 const { aff, dic } = require('rvn-dictionary');
 const { create } = require('./proofreader.js');
 let proofreader;
 try {
-  proofreader = create(nspell(aff, dic));
+  proofreader = create(createSpell(aff, dic));
   self.postMessage({ type: 'ready' });
 } catch (error) {
   self.postMessage({ type: 'init-error', error: error.message });

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node scripts/build.cjs",
     "start": "node server.js",
-    "test": "node engine.test.js && node proofreader.test.js && node worker.test.js"
+    "test": "node engine.test.js && node lazy-spell.test.js && node proofreader.test.js && node worker.test.js"
   },
   "dependencies": {
     "dictionary-uk": "4.0.0",
