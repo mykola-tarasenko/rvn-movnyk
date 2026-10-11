@@ -53,8 +53,6 @@
     'журналіст журналістка депутат науковець фахівець організатор викладач викладачка тренер читач слухач глядач').split(' '));
   const PLURAL_ONLY_PEOPLE = new Set(['діти', 'люди', 'друзі', 'батьки']);
   const DATIVE_PRONOUN = { вас: 'вам', тебе: 'тобі', нас: 'нам', мене: 'мені' };
-  // Подвоєний приголосний + я зазвичай означає середній рід (рішення, життя), але не в цих словах.
-  const FEMININE_DOUBLED = new Set(['стаття', 'рілля']);
 
   function create(spell) {
     const available = typeof spell.bases === 'function' && typeof spell.forms === 'function';
@@ -125,14 +123,17 @@
     }
     // Іменник у початковій формі: рід за закінченням; сумнівні закінчення (-ь, -сть, шиплячі) пропускаємо.
     function nounGender(word) {
-      const candidates = [word, ...standard(word)].flatMap(form => [form.toLocaleLowerCase('uk'), form]);
+      const candidates = [word, ...standard(word)].map(form => form.replace(/[’ʼ]/gu, "'")).flatMap(form => [form.toLocaleLowerCase('uk'), form]);
       const lemma = candidates.find(form => spell.inflected(form));
       const lower = lemma ? lemma.toLocaleLowerCase('uk') : '';
       if (!lemma || isVerbLemma(lower) || isAdjectiveLemma(lower) || COMMON_GENDER.has(lower) || /ько$/u.test(lower)) return null;
-      if (/([бвгґджзклмнпрстфхцчшщ])\1я$/u.test(lower)) return FEMININE_DOUBLED.has(lower) ? 'f' : 'n';
-      if (/'я$/u.test(lower)) return null;
-      // Середній рід на -а/-я з нарощенням: кошеня — кошеняти, ім'я — імені.
-      if (/[ая]$/u.test(lower)) return spell.forms(lemma).some(form => form === lemma + 'ти' || form === lemma.slice(0, -1) + 'ені') ? 'n' : 'f';
+      // Імена на -а/-я бувають і чоловічого роду (Микола, Лука, Ілля), тож рід власної назви за закінченням не визначаємо.
+      if (/[ая]$/u.test(lower) && word[0] !== word[0].toLocaleLowerCase('uk')) return null;
+      // На -я рід видно з орудного однини: жіночий — -ею/-єю (земля — землею, стаття — статтею, сім'я — сім'єю),
+      // середній — -ям (повітря — повітрям, щастя — щастям, кошеня — кошеням, ім'я — ім'ям).
+      if (/я$/u.test(lower)) return spell.forms(lemma).some(form => form === lemma.slice(0, -1) + 'ею' || form === lemma.slice(0, -1) + 'єю') ? 'f' : 'n';
+      // Середній рід на -а з нарощенням: дівча — дівчати.
+      if (/а$/u.test(lower)) return spell.forms(lemma).some(form => form === lemma + 'ти') ? 'n' : 'f';
       if (/[оеє]$/u.test(lower)) return 'n';
       if (/(?:ть|[ьчжшщв])$/u.test(lower)) return null;
       if (/[бгґдзклмнпрстфхцй]$/u.test(lower)) return 'm';

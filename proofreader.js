@@ -126,6 +126,9 @@
       }
       function matches(pattern, handle) { for (const match of text.matchAll(pattern)) handle(match); }
       const contiguous = (left, right) => /^[ \t]+$/u.test(text.slice(left.end, right.start));
+      // Частини слова через дефіс («хто-небудь», «казна-що») словник може знати лише разом.
+      const hyphenated = index => [[words[index - 1], words[index]], [words[index], words[index + 1]]]
+        .some(([left, right]) => left && right && text.slice(left.end, right.start) === '-' && correct(norm(text.slice(left.start, right.end))));
 
       for (const item of edited.reviews) issue(item.start, item.end, 'rvn', item.message, item.replacements);
       words.forEach((word, index) => {
@@ -139,7 +142,7 @@
           const alphabet = { a: 'а', c: 'с', e: 'е', i: 'і', o: 'о', p: 'р', x: 'х', y: 'у', A: 'А', B: 'В', C: 'С', E: 'Е', H: 'Н', I: 'І', K: 'К', M: 'М', O: 'О', P: 'Р', T: 'Т', X: 'Х' };
           const repaired = [...word.value].map(c => alphabet[c] || c).join('');
           issue(word.start, word.end, 'spelling', 'У слові змішані латинські та кириличні літери.', accepted(repaired, personal, sharedGenitive) ? [repaired] : [], { word: word.value });
-        } else if (settings.spelling && !personalWord && !accepted(word.value, personal, sharedGenitive) && !(text[word.end] === '.' && (engine.acceptedAbbreviation(word.value + '.') || sharedAbbreviations.has(norm(word.value + '.').toLocaleLowerCase('uk'))))) {
+        } else if (settings.spelling && !personalWord && !accepted(word.value, personal, sharedGenitive) && !hyphenated(index) && !(text[word.end] === '.' && (engine.acceptedAbbreviation(word.value + '.') || sharedAbbreviations.has(norm(word.value + '.').toLocaleLowerCase('uk'))))) {
           issue(word.start, word.end, 'spelling', 'Слово не знайдено в українському словнику та винятках РВН. Перевірте написання; власну назву можна додати до особистого словника.', [], { word: word.value });
         }
         const prev = words[index - 1];
