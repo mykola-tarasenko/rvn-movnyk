@@ -161,9 +161,13 @@
     const ranges = protectedRanges(text);
     return [...text.matchAll(WORDS)].map(match => ({ value: match[0], lower: match[0].toLocaleLowerCase('uk').replace(/[’ʼ]/g, "'"), start: match.index, end: match.index + match[0].length, protected: ranges.some(r => match.index < r.end && match.index + match[0].length > r.start) }));
   }
-  function genitiveForm(lower, overrides = []) {
+  // Родовий на -и (правопис 1928 р.): іменники жіночого роду III відміни на -ть за другим приголосним
+  // (радости, смерти, участи) і винятки GENITIVE. Без словника розпізнаємо лише -ості (зокрема з апострофом);
+  // повне правило дає thirdDeclension зі словника (grammar-rules.js).
+  function genitiveForm(lower, overrides = [], thirdDeclension = null) {
     const override = overrides.find(item => item.from.toLocaleLowerCase('uk') === lower);
-    return GENITIVE.get(lower) || override?.to || (/^[а-яіїєґ]+ості$/u.test(lower) ? lower.slice(0, -1) + 'и' : null);
+    return GENITIVE.get(lower) || override?.to || (/^[а-яіїєґ']+ості$/u.test(lower) ? lower.slice(0, -1) + 'и' : null)
+      || (thirdDeclension && thirdDeclension(lower)) || null;
   }
   function genitiveContext(words, index, text, depth = 0) {
     let adjective = false;
@@ -384,7 +388,7 @@
         }
       }
       const overrides = enabled.genitiveOverrides || [];
-      const genitive = enabled.ending && genitiveForm(replacement.toLocaleLowerCase('uk').replace(/[’ʼ]/g, "'"), overrides);
+      const genitive = enabled.ending && genitiveForm(replacement.toLocaleLowerCase('uk').replace(/[’ʼ]/g, "'"), overrides, options.thirdDeclension);
       if (genitive) {
         const context = genitiveContext(words, index, text);
         if (context.kind === 'genitive') { replacement = caseLike(word.value, genitive); label = label ? label + '; ' + context.reason : context.reason; }

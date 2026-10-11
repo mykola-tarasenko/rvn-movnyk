@@ -19,10 +19,10 @@
       const w = norm(word), lower = w.toLocaleLowerCase('uk');
       if (personal.has(lower) || engine.accepted(lower) || ['РВН', 'ГО'].includes(word)) return true;
       if (correct(w)) return true;
-      if (engine.isRvnGenitive(lower, sharedGenitive)) {
-        const modern = lower.slice(0, -1) + 'і';
-        if (correct(modern)) return true;
-      }
+      // Родовий на -и (радости, участи): стандартна форма на -і має бути в словнику.
+      const modern = lower.slice(0, -1) + 'і';
+      if (engine.isRvnGenitive(lower, sharedGenitive) && correct(modern)) return true;
+      if (/ти$/u.test(lower) && rules.thirdDeclensionGenitive(modern.replace(/[’ʼ]/gu, "'")) === lower.replace(/[’ʼ]/gu, "'")) return true;
       return false;
     }
 
@@ -87,7 +87,7 @@
       const formatted = settings.typography ? typography(input) : { text: input, changes: [] };
       const sharedGenitive = Array.isArray(sharedData.genitive) ? sharedData.genitive : [];
       const sharedAbbreviations = new Set((Array.isArray(sharedData.abbreviations) ? sharedData.abbreviations : []).map(value => norm(value).toLocaleLowerCase('uk')));
-      const edited = engine.edit(formatted.text, { ...settings, genitiveOverrides: sharedGenitive, known: word => spell.correct(word) });
+      const edited = engine.edit(formatted.text, { ...settings, genitiveOverrides: sharedGenitive, known: word => spell.correct(word), thirdDeclension: rules.thirdDeclensionGenitive });
       // Map earlier typography edits through later word-level replacements so their
       // coordinates refer to the final text shown in the result pane.
       let precedingDelta = 0;
@@ -130,9 +130,9 @@
       for (const item of edited.reviews) issue(item.start, item.end, 'rvn', item.message, item.replacements);
       words.forEach((word, index) => {
         if (word.protected || !UK.test(word.value)) return;
-        if (settings.ending && engine.genitiveForm(word.lower, sharedGenitive)) {
+        if (settings.ending && engine.genitiveForm(word.lower, sharedGenitive, rules.thirdDeclensionGenitive)) {
           const context = engine.genitiveContext(words, index, text);
-          if (context.kind === 'ambiguous') issue(word.start, word.end, 'case', context.reason, [engine.caseLike(word.value, engine.genitiveForm(word.lower, sharedGenitive))]);
+          if (context.kind === 'ambiguous') issue(word.start, word.end, 'case', context.reason, [engine.caseLike(word.value, engine.genitiveForm(word.lower, sharedGenitive, rules.thirdDeclensionGenitive))]);
         }
         const personalWord = personalRanges.some(r => word.start >= r.start && word.end <= r.end);
         if (settings.spelling && !personalWord && /[a-z]/iu.test(word.value)) {

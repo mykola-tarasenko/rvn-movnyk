@@ -63,9 +63,27 @@
     const standard = word => {
       const lower = word.toLocaleLowerCase('uk');
       const forms = engine.standardForms(lower);
-      if (/ости$/u.test(lower)) forms.push(lower.slice(0, -1) + 'і', ...engine.standardForms(lower.slice(0, -1) + 'і'));
+      const modern = lower.slice(0, -1) + 'і';
+      if (/ости$/u.test(lower) || (/ти$/u.test(lower) && thirdDeclensionGenitive(modern.replace(/[’ʼ]/gu, "'")) === lower.replace(/[’ʼ]/gu, "'")))
+        forms.push(modern, ...engine.standardForms(modern));
       return forms.map(form => word === lower ? form : engine.caseLike(word, form));
     };
+    // Іменник жіночого роду III відміни на -ть за другим приголосним: орудний на -тю (участю, смертю) і жодних
+    // чоловічих форм на -ем/-еві/-ові (тестем, гостеві). Родовий -ті → -ти за правописом 1928 р.
+    const thirdCache = new Map();
+    function thirdDeclensionGenitive(lower) {
+      if (!available || !/[бвгґджзклмнпрстфхцчшщ]ті$/u.test(lower)) return null;
+      if (!thirdCache.has(lower)) {
+        const lemma = spell.bases(lower).find(base => {
+          if (!/[бвгґджзклмнпрстфхцчшщ]ть$/u.test(base)) return false;
+          const forms = spell.forms(base);
+          return forms.includes(base.slice(0, -1) + 'ю') && !forms.some(form => /(?:ем|еві|ові)$/u.test(form));
+        });
+        thirdCache.set(lower, lemma ? lower.slice(0, -1) + 'и' : null);
+        if (thirdCache.size > 5000) thirdCache.delete(thirdCache.keys().next().value);
+      }
+      return thirdCache.get(lower);
+    }
     const bases = word => {
       if (!available) return [];
       if (!cache.has(word)) {
@@ -195,6 +213,7 @@
 
     return {
       available,
+      thirdDeclensionGenitive,
       // Вставні слова в середині речення; на початку речення їх перевіряє proofreader.js.
       parentheticals({ text, issue }) {
         const message = 'Ймовірний вставний вислів: відокремте його комами, якщо він не є членом речення.';

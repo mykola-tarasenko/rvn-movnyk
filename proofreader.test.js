@@ -26,6 +26,23 @@ test('родовий у різних конструкціях, включно з
   for (const [from, to] of pairs) assert.equal(engine.edit(from).text, to, from);
 });
 
+test('родовий на -и для всіх іменників III відміни на -ть за приголосним (правопис 1928 р.)', () => {
+  const pairs = [
+    ['Без участі нема перемоги.', 'Без участи нема перемоги.'], ['Рівень участі зріс.', 'Рівень участи зріс.'],
+    ['Без пристрасті й доблесті.', 'Без пристрасти й доблести.'], ['Без обов’язковості.', 'Без обов’язковости.'],
+    ['Без жодної кіноповісті.', 'Без жодної кіноповісти.'], ['До четверті століття.', 'До четверти століття.'], ['Без співучасті громади.', 'Без співучасти громади.']
+  ];
+  for (const [from, to] of pairs) {
+    const result = analyze(from, { euphony: false });
+    assert.equal(result.text, to, from);
+    assert.deepEqual(result.issues.filter(i => i.type === 'spelling').map(i => i.from), [], from);
+  }
+  // Давальний і місцевий, шиплячі, -ть після голосного й чоловічий рід не змінюються.
+  for (const text of ['Завдяки участі громади.', 'У тексті немає помилок.', 'В цьому тексті.', 'До ночі ми працювали.', 'Без миті вагань.', 'Без суті справи.', 'Без тестя не обійшлося.'])
+    assert.deepEqual([analyze(text, { euphony: false }).text, analyze(text, { euphony: false }).issues.filter(i => i.type === 'case').length], [text, 0], text);
+  assert.ok(analyze('Межі області.').issues.some(i => i.type === 'case' && i.replacements.includes('области')));
+});
+
 test('давальний, місцевий, паузи й неоднозначні форми', () => {
   for (const text of ['Завдяки можливості.', 'У власній гідності.', 'Всупереч необхідності.', 'Раділи можливості.', 'У її любові.']) {
     const result = analyze(text, { euphony: false });
