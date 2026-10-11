@@ -40,7 +40,7 @@
   const NOT_ADJECTIVES = new Set('мій твій свій чий'.split(' '));
   // Вставні слова всередині речення: «Ми, на жаль, не встигли».
   // «звичайно» всередині речення часто означає «зазвичай» («Він звичайно приходить о 9»), тож його тут немає.
-  const PARENTHETICALS = ['на жаль', 'на щастя', 'до речі', 'наприклад', 'мабуть', 'напевно', 'безперечно', 'без сумніву', 'щоправда',
+  const PARENTHETICALS = ['на жаль', 'на щастя', 'до речі', 'до речи', 'наприклад', 'мабуть', 'напевно', 'безперечно', 'без сумніву', 'щоправда',
     'по-перше', 'по-друге', 'по-третє', 'як відомо', 'на мою думку', 'на нашу думку', 'крім того', 'можливо', 'очевидно', 'зрештою'];
   const PARENTHETICAL = new RegExp(`(?<![\\p{L}-])(${PARENTHETICALS.join('|')})(?![\\p{L}-])`, 'giu');
   // Після цих слів вставне слово є присудком або обставиною: «Це можливо», «дуже до речі», «як звичайно».
@@ -64,20 +64,26 @@
       const lower = word.toLocaleLowerCase('uk');
       const forms = engine.standardForms(lower);
       const modern = lower.slice(0, -1) + 'і';
-      if (/ости$/u.test(lower) || (/ти$/u.test(lower) && thirdDeclensionGenitive(modern.replace(/[’ʼ]/gu, "'")) === lower.replace(/[’ʼ]/gu, "'")))
+      if (/ости$/u.test(lower) || (/[бвгґджзклмнпрстфхцчшщ'’ʼ]и$/u.test(lower) && thirdDeclensionGenitive(modern.replace(/[’ʼ]/gu, "'")) === lower.replace(/[’ʼ]/gu, "'")))
         forms.push(modern, ...engine.standardForms(modern));
       return forms.map(form => word === lower ? form : engine.caseLike(word, form));
     };
-    // Іменник жіночого роду III відміни на -ть за другим приголосним: орудний на -тю (участю, смертю) і жодних
-    // чоловічих форм на -ем/-еві/-ові (тестем, гостеві). Родовий -ті → -ти за правописом 1928 р.
+    // Родовий на -и в усіх іменниках жіночого роду III відміни (ширше правило, як до 1933 р.): радости, участи,
+    // ночи, подорожи, тіни, мити, відповіди, крови, Руси, а також матери. Відміну визначаємо за словником:
+    // основа на приголосний, орудний від основи на -ю (радістю, ніччю, кров'ю) і жодних чоловічих форм
+    // на -ем/-ом/-еві/-ові (тестем, конем, текстом).
     const thirdCache = new Map();
     function thirdDeclensionGenitive(lower) {
-      if (!available || !/[бвгґджзклмнпрстфхцчшщ]ті$/u.test(lower)) return null;
+      if (!available || !/[бвгґджзклмнпрстфхцчшщ']і$/u.test(lower)) return null;
+      if (lower === 'матері') return 'матери';
       if (!thirdCache.has(lower)) {
-        const lemma = spell.bases(lower).find(base => {
-          if (!/[бвгґджзклмнпрстфхцчшщ]ть$/u.test(base)) return false;
-          const forms = spell.forms(base);
-          return forms.includes(base.slice(0, -1) + 'ю') && !forms.some(form => /(?:ем|еві|ові)$/u.test(form));
+        // Власну назву з великої літери шукаємо лише тоді, коли це не звичайне слово («Усі» — не «Ус»).
+        const common = spell.bases(lower);
+        const lemma = (common.length ? common : spell.bases(lower[0].toLocaleUpperCase('uk') + lower.slice(1))).find(base => {
+          if (!/[бвгґджзклмнпрстфхцчшщ]ь?$/u.test(base)) return false;
+          // Орудний від самої основи: радість — радістю, ніч — ніччю, кров — кров'ю («усі» — «усю» не підходить).
+          const stem = base.replace(/ь$/u, ''), forms = spell.forms(base);
+          return [stem + 'ю', stem + stem.at(-1) + 'ю', stem + "'ю"].some(form => forms.includes(form)) && !forms.some(form => /(?:ем|ом|еві|ові)$/u.test(form));
         });
         thirdCache.set(lower, lemma ? lower.slice(0, -1) + 'и' : null);
         if (thirdCache.size > 5000) thirdCache.delete(thirdCache.keys().next().value);

@@ -22,7 +22,7 @@
       // Родовий на -и (радости, участи): стандартна форма на -і має бути в словнику.
       const modern = lower.slice(0, -1) + 'і';
       if (engine.isRvnGenitive(lower, sharedGenitive) && correct(modern)) return true;
-      if (/ти$/u.test(lower) && rules.thirdDeclensionGenitive(modern.replace(/[’ʼ]/gu, "'")) === lower.replace(/[’ʼ]/gu, "'")) return true;
+      if (/[бвгґджзклмнпрстфхцчшщ'’ʼ]и$/u.test(lower) && rules.thirdDeclensionGenitive(modern.replace(/[’ʼ]/gu, "'")) === lower.replace(/[’ʼ]/gu, "'")) return true;
       return false;
     }
 
@@ -150,7 +150,7 @@
 
       if (settings.punctuation) {
         // A comma is suggested, never silently inserted at a conjectured clause boundary.
-        matches(/(^|[.!?]\s+)(На жаль|На щастя|Без сумніву|Безперечно|По-перше|По-друге|По-третє|Отже|Будь ласка|Звичайно|Мабуть|Напевно|Наприклад|До речі|Щоправда|Як відомо|На мою думку|На нашу думку|Зрештою|Очевидно|Крім того(?! (?:що|як)))([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
+        matches(/(^|[.!?]\s+)(На жаль|На щастя|Без сумніву|Безперечно|По-перше|По-друге|По-третє|Отже|Будь ласка|Звичайно|Мабуть|Напевно|Наприклад|До реч[іи]|Щоправда|Як відомо|На мою думку|На нашу думку|Зрештою|Очевидно|Крім того(?! (?:що|як)))([ \t]+)(?=[А-Яа-яІіЇїЄєҐґ])/gimu, m => {
           const start = m.index + m[1].length;
           issue(start, start + m[2].length, 'punctuation', 'Ймовірний вставний вислів: відокремте його комою, якщо він не є членом речення.', [m[2] + ',']);
         });

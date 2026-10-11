@@ -111,7 +111,7 @@
 
   const GENITIVE = new Map([
     ['радості', 'радости'], ['вісті', 'вісти'], ['смерті', 'смерти'], ['чверті', 'чверти'],
-    ['осені', 'осени'], ['солі', 'соли'], ['крові', 'крови'], ['любові', 'любови'], ['русі', 'руси'],
+    ['осені', 'осени'], ['солі', 'соли'], ['крові', 'крови'], ['любові', 'любови'], ['русі', 'руси'], ['білорусі', 'білоруси'],
     ['імені', 'імени'], ['честі', 'чести'], ['совісті', 'совісти'],
     ['повісті', 'повісти'], ['користі', 'користи'], ['ненависті', 'ненависти'],
     ['шерсті', 'шерсти'], ['кісті', 'кісти'], ['кості', 'кости'], ['масті', 'масти'],
@@ -122,6 +122,8 @@
   const GENITIVE_HEADS = new Set(('рівень рівня рівнем почуття брак браку вияв вияву символ символом стан стану день дня питання показник показника ознака ознаки джерело втрата втрати збереження захист захисту досягнення розвиток розвитку обмеження позбавлення наявність відсутність доказ докази прояв прояву').split(' '));
   for (const form of ['відсутності', 'відсутности', 'наявності', 'наявности', 'нестача', 'нестачі', 'нестачу', 'почуттям', 'почуттів', 'відчуття', 'відчуттям', 'вияви', 'виявів', 'станом']) GENITIVE_HEADS.add(form);
   const OBLIQUE_GOVERNORS = new Set(('в у на при по завдяки всупереч наперекір радіти радіє раділи радіємо допомогли допомагає допомагати допомогти присвятили присвятити присвячений присвячена вірити віримо служити завдячувати').split(' '));
+  // Означення чи числівник у множині: «нові можливості», «усі області», «дві області» — це не родовий однини.
+  const PLURAL_MODIFIERS = new Set('усі всі ці ті такі які котрі інші деякі різні нові старі великі малі наші ваші їхні мої твої свої обидві дві три чотири'.split(' '));
   const MODIFIERS = new Set(('її його їх дуже надто такої такої-то моєї твоєї своєї нашої вашої цієї тієї жодної будь-якої всієї усякої').split(' '));
   const ADJ_GENITIVE = /(?:ої|ьої|ого|ього)$/u;
   const VOWEL = /[аеєиіїоуюя]$/u;
@@ -161,9 +163,8 @@
     const ranges = protectedRanges(text);
     return [...text.matchAll(WORDS)].map(match => ({ value: match[0], lower: match[0].toLocaleLowerCase('uk').replace(/[’ʼ]/g, "'"), start: match.index, end: match.index + match[0].length, protected: ranges.some(r => match.index < r.end && match.index + match[0].length > r.start) }));
   }
-  // Родовий на -и (правопис 1928 р.): іменники жіночого роду III відміни на -ть за другим приголосним
-  // (радости, смерти, участи) і винятки GENITIVE. Без словника розпізнаємо лише -ості (зокрема з апострофом);
-  // повне правило дає thirdDeclension зі словника (grammar-rules.js).
+  // Родовий на -и в іменниках жіночого роду III відміни (радости, смерти, ночи, крови) — список GENITIVE і -ості
+  // (зокрема з апострофом) без словника; повне правило для всіх таких іменників дає thirdDeclension (grammar-rules.js).
   function genitiveForm(lower, overrides = [], thirdDeclension = null) {
     const override = overrides.find(item => item.from.toLocaleLowerCase('uk') === lower);
     return GENITIVE.get(lower) || override?.to || (/^[а-яіїєґ']+ості$/u.test(lower) ? lower.slice(0, -1) + 'и' : null)
@@ -175,6 +176,7 @@
       const prev = words[j], gap = text.slice(prev.end, words[j + 1].start);
       if (prev.protected || /[.!?;:\n—–]/u.test(gap)) break;
       if (OBLIQUE_GOVERNORS.has(prev.lower)) return { kind: 'other', reason: `«${prev.value}» вказує на давальний або місцевий відмінок.` };
+      if (PLURAL_MODIFIERS.has(prev.lower)) return { kind: 'other', reason: `«${prev.value}» вказує на множину.` };
       if (GENITIVE_GOVERNORS.has(prev.lower)) return { kind: 'genitive', reason: `Родовий відмінок після «${prev.value}».` };
       if (GENITIVE_HEADS.has(prev.lower)) return { kind: 'genitive', reason: `Залежне слово після «${prev.value}» відповідає на питання «чого?».` };
       if (['було', 'буде', 'вистачає', 'вистачило', 'має', 'мають', 'мав', 'мала'].includes(prev.lower) && words[j - 1]?.lower === 'не') return { kind: 'genitive', reason: `Родовий відмінок при запереченні «не ${prev.value}».` };
